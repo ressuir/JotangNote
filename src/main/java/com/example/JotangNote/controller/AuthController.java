@@ -81,4 +81,36 @@ public class AuthController {
                 )
         );
     }
+
+    @GetMapping("/me")
+    public ResponseEntity<?> me(HttpSession session) {
+
+        Long userId = (Long) session.getAttribute("userId");
+
+        if (userId == null) {
+            return ResponseEntity.status(401)
+                    .body(Map.of("message", "please login first"));
+        }
+
+        User user = userMapper.selectById(userId);
+
+        if (user == null) {
+            session.invalidate();
+            return ResponseEntity.status(401)
+                    .body(Map.of("message", "user not found"));
+        }
+
+        return ResponseEntity.ok(
+                Map.of(
+                        "id", user.getId(),
+                        "username", user.getUsername()
+                )
+        );
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<?> logout(HttpSession session) {
+        session.invalidate();
+        return ResponseEntity.ok(Map.of("message", "logged out"));
+    }
 }

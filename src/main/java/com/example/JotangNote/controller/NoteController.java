@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.*;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -33,6 +34,11 @@ public class NoteController {
         this.redisTemplate = redisTemplate;
         this.jsonMapper = jsonMapper;
         this.rabbitTemplate = rabbitTemplate;
+    }
+
+    @GetMapping
+    public ResponseEntity<List<Note>> list() {
+        return ResponseEntity.ok(noteMapper.selectList(null));
     }
 
     @PostMapping
