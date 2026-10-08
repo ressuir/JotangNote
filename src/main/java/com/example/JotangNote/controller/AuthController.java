@@ -6,6 +6,9 @@ import com.example.JotangNote.dto.RegisterRequest;
 import com.example.JotangNote.entity.User;
 import com.example.JotangNote.mapper.UserMapper;
 import jakarta.servlet.http.HttpSession;
+import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.dao.DuplicateKeyException;
+import java.nio.charset.StandardCharsets;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.web.bind.annotation.*;
@@ -26,10 +29,21 @@ public class AuthController {
 
     @PostMapping("/register")
     public ResponseEntity<?> register(@RequestBody RegisterRequest request) {
+        if (request == null || request.username() == null || request.password() == null) {
+            return ResponseEntity.badRequest().body(Map.of("message", "username and password are required"));
+        }
+        String username = request.username().trim();
+        int passwordBytes = request.password().getBytes(StandardCharsets.UTF_8).length;
+        if (username.length() < 2 || username.length() > 32
+                || username.chars().anyMatch(Character::isWhitespace)
+                || passwordBytes < 8 || passwordBytes > 72) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "message", "username must be 2-32 non-space characters; password must be 8-72 UTF-8 bytes"));
+        }
 
         User existing = userMapper.selectOne(
                 new LambdaQueryWrapper<User>()
-                        .eq(User::getUsername, request.username())
+                        .eq(User::getUsername, username)
         );
 
         if (existing != null) {
@@ -38,12 +52,17 @@ public class AuthController {
         }
 
         User user = new User();
-        user.setUsername(request.username());
+        user.setUsername(username);
         user.setPasswordHash(
                 passwordEncoder.encode(request.password())
         );
 
-        userMapper.insert(user);
+        try {
+            userMapper.insert(user);
+        } catch (DuplicateKeyException e) {
+            return ResponseEntity.status(409)
+                    .body(Map.of("message", "username already exists"));
+        }
 
         return ResponseEntity.ok(
                 Map.of(
@@ -56,11 +75,18 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<?> login(
             @RequestBody LoginRequest request,
-            HttpSession session) {
+            HttpSession session,
+            HttpServletRequest httpRequest) {
+
+        if (request == null || request.username() == null
+                || request.username().isBlank() || request.password() == null) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("message", "username and password are required"));
+        }
 
         User user = userMapper.selectOne(
                 new LambdaQueryWrapper<User>()
-                        .eq(User::getUsername, request.username())
+                        .eq(User::getUsername, request.username().trim())
         );
 
         if (user == null ||
@@ -72,6 +98,7 @@ public class AuthController {
                     .body(Map.of("message", "wrong username or password"));
         }
 
+        httpRequest.changeSessionId();
         session.setAttribute("userId", user.getId());
 
         return ResponseEntity.ok(
