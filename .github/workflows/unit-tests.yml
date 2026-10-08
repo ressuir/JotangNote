@@ -1,0 +1,20 @@
+name: Unit tests
+
+on:
+  pull_request:
+  push:
+    branches:
+      - fix/submission-security-20261008
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+      - name: Run isolated note authorization tests
+        run: bash ./mvnw -B '-Dtest=NoteAccessServiceTest,ChatServiceTest' test
