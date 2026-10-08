@@ -1,7 +1,7 @@
 package com.example.JotangNote.ai;
 
 import com.example.JotangNote.entity.Note;
-import com.example.JotangNote.mapper.NoteMapper;
+import com.example.JotangNote.service.NoteAccessService;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -22,7 +22,7 @@ public class ChatService {
 
 
     private final ModelClient modelClient;
-    private final NoteMapper noteMapper;
+    private final NoteAccessService noteAccessService;
     private final JsonMapper jsonMapper;
 
 
@@ -40,17 +40,18 @@ public class ChatService {
 
     public ChatService(
             ModelClient modelClient,
-            NoteMapper noteMapper,
+            NoteAccessService noteAccessService,
             JsonMapper jsonMapper) {
 
         this.modelClient = modelClient;
-        this.noteMapper = noteMapper;
+        this.noteAccessService = noteAccessService;
         this.jsonMapper = jsonMapper;
     }
 
 
     public String chat(
             String conversationId,
+            Long userId,
             String userMessage) {
 
         /*
@@ -162,14 +163,12 @@ public class ChatService {
 
                     String result =
                             executeTool(
-                                    toolCall
+                                    toolCall,
+                                    userId
                             );
 
 
-                    System.out.println(
-                            "Tool result: "
-                                    + result
-                    );
+                    // Note bodies may be private; never log tool results.
 
 
                     /*
@@ -355,7 +354,7 @@ public class ChatService {
      * 是这里。
      */
     private String executeTool(
-            ToolCall toolCall) {
+            ToolCall toolCall, Long userId) {
 
         return switch (
                 toolCall.name()
@@ -363,7 +362,7 @@ public class ChatService {
 
             case "get_note" ->
                     getNote(
-                            toolCall.arguments()
+                            toolCall.arguments(), userId
                     );
 
             default ->
@@ -379,7 +378,7 @@ public class ChatService {
      * 真正查询 MySQL。
      */
     private String getNote(
-            String argumentsJson) {
+            String argumentsJson, Long userId) {
 
         try {
 
@@ -436,15 +435,15 @@ public class ChatService {
              * JotangNote 原本的 Mapper。
              */
             Note note =
-                    noteMapper.selectById(
-                            noteId
+                    noteAccessService.findOwned(
+                            noteId, userId
                     );
 
 
             if (note == null) {
 
                 return errorJson(
-                        "note not found"
+                        "note not found or access denied"
                 );
             }
 
