@@ -102,10 +102,7 @@ public class ChatController {
                     .body(
                             Map.of(
                                     "message",
-                                    e.getMessage()
-                                            == null
-                                            ? "chat failed"
-                                            : e.getMessage()
+                                    "chat failed; check server logs"
                             )
                     );
         }
