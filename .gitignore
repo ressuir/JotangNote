@@ -36,3 +36,12 @@ build/
 *-cookie.txt
 *.log
 .env
+
+# Never commit local credentials or browser session data
+cookie.txt
+*.cookie
+.env.*
+!.env.example
+*.pem
+*.p12
+*.key

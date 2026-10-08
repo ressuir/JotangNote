@@ -1,0 +1,89 @@
+name: Build and integration tests
+
+on:
+  pull_request:
+  push:
+    branches:
+      - fix/submission-security-20261008
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+      - name: Run isolated note authorization tests
+        run: bash ./mvnw -B '-Dtest=NoteAccessServiceTest,ChatServiceTest' test
+
+  integration-tests:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: testpass
+          MYSQL_DATABASE: jotang_note
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -ptestpass"
+          --health-interval=10s --health-timeout=5s --health-retries=12
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=5s --health-timeout=3s --health-retries=10
+      rabbitmq:
+        image: rabbitmq:3.13-management
+        env:
+          RABBITMQ_DEFAULT_USER: jotang
+          RABBITMQ_DEFAULT_PASS: testpass
+        ports:
+          - 5672:5672
+        options: >-
+          --health-cmd="rabbitmq-diagnostics -q ping"
+          --health-interval=10s --health-timeout=5s --health-retries=12
+    env:
+      DB_USERNAME: root
+      DB_PASSWORD: testpass
+      SPRING_RABBITMQ_USERNAME: jotang
+      SPRING_RABBITMQ_PASSWORD: testpass
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+      - name: Initialize schema
+        run: |
+          if ! command -v mysql >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y default-mysql-client
+          fi
+          mysql -h 127.0.0.1 -u root -ptestpass < sql/schema.sql
+      - name: Run all Maven tests
+        run: bash ./mvnw -B test
+      - name: Start server and smoke-test HTTP API
+        run: |
+          bash ./mvnw -B -DskipTests spring-boot:run > /tmp/jotang-server.log 2>&1 &
+          for i in {1..60}; do
+            if curl -fsS http://localhost:8080/hello >/dev/null 2>&1; then
+              break
+            fi
+            sleep 1
+          done
+          if ! curl -fsS http://localhost:8080/hello >/dev/null; then
+            cat /tmp/jotang-server.log
+            exit 1
+          fi
+          bash scripts/smoke-test.sh
+      - name: Print server logs on failure
+        if: failure()
+        run: cat /tmp/jotang-server.log 2>/dev/null || true

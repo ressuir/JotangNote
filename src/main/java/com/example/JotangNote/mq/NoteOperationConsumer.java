@@ -52,18 +52,23 @@ public class NoteOperationConsumer {
             case "UPDATE" -> {
                 Note note = noteMapper.selectById(message.noteId());
 
-                if (note != null) {
+                if (note != null && message.userId() != null
+                        && message.userId().equals(note.getAuthorId())) {
                     note.setTitle(message.title());
                     note.setContent(message.content());
                     noteMapper.updateById(note);
 
-                    redisTemplate.delete("note:" + message.noteId());
+                    redisTemplate.delete("note:" + message.userId() + ":" + message.noteId());
                 }
             }
 
             case "DELETE" -> {
-                noteMapper.deleteById(message.noteId());
-                redisTemplate.delete("note:" + message.noteId());
+                Note note = noteMapper.selectById(message.noteId());
+                if (note != null && message.userId() != null
+                        && message.userId().equals(note.getAuthorId())) {
+                    noteMapper.deleteById(message.noteId());
+                    redisTemplate.delete("note:" + message.userId() + ":" + message.noteId());
+                }
             }
         }
     }

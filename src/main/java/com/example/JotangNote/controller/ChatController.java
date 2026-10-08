@@ -82,6 +82,7 @@ public class ChatController {
             String reply =
                     chatService.chat(
                             conversationId,
+                            userId,
                             request.message()
                     );
 
@@ -101,10 +102,7 @@ public class ChatController {
                     .body(
                             Map.of(
                                     "message",
-                                    e.getMessage()
-                                            == null
-                                            ? "chat failed"
-                                            : e.getMessage()
+                                    "chat failed; check server logs"
                             )
                     );
         }
