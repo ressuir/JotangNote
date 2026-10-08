@@ -62,6 +62,11 @@ public class NoteController {
                     .body(Map.of("message", "please login first"));
         }
 
+        if (!validNote(note)) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("message", "title or content is invalid"));
+        }
+
         NoteOperationMessage message =
                 new NoteOperationMessage(
                         "CREATE",
@@ -122,6 +127,11 @@ public class NoteController {
                     .body(Map.of("message", "please login first"));
         }
 
+        if (!validNote(newNote)) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("message", "title or content is invalid"));
+        }
+
         Note oldNote = noteAccessService.findOwned(id, userId);
         if (oldNote == null) {
             return ResponseEntity.notFound().build();
@@ -179,4 +189,10 @@ public class NoteController {
         return ResponseEntity.accepted()
                 .body(Map.of("message", "delete operation queued"));
     }
+    private static boolean validNote(Note note) {
+        return note != null && note.getTitle() != null
+                && !note.getTitle().isBlank() && note.getTitle().length() <= 200
+                && note.getContent() != null && note.getContent().length() <= 100_000;
+    }
 }
+
