@@ -4,6 +4,7 @@ import com.example.JotangNote.entity.Note;
 import com.example.JotangNote.mapper.NoteMapper;
 import com.example.JotangNote.mq.NoteOperationMessage;
 import com.example.JotangNote.mq.RabbitConfig;
+import com.example.JotangNote.service.NoteAccessService;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -20,25 +21,33 @@ import java.util.Map;
 public class NoteController {
 
     private final NoteMapper noteMapper;
+    private final NoteAccessService noteAccessService;
     private final StringRedisTemplate redisTemplate;
     private final JsonMapper jsonMapper;
     private final RabbitTemplate rabbitTemplate;
 
     public NoteController(
             NoteMapper noteMapper,
+            NoteAccessService noteAccessService,
             StringRedisTemplate redisTemplate,
             JsonMapper jsonMapper,
             RabbitTemplate rabbitTemplate) {
 
         this.noteMapper = noteMapper;
+        this.noteAccessService = noteAccessService;
         this.redisTemplate = redisTemplate;
         this.jsonMapper = jsonMapper;
         this.rabbitTemplate = rabbitTemplate;
     }
 
     @GetMapping
-    public ResponseEntity<List<Note>> list() {
-        return ResponseEntity.ok(noteMapper.selectList(null));
+    public ResponseEntity<?> list(HttpSession session) {
+        Long userId = (Long) session.getAttribute("userId");
+        if (userId == null) {
+            return ResponseEntity.status(401)
+                    .body(Map.of("message", "please login first"));
+        }
+        return ResponseEntity.ok(noteAccessService.listOwned(userId));
     }
 
     @PostMapping
@@ -72,35 +81,31 @@ public class NoteController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Note> get(@PathVariable Long id) {
-
-        String key = "note:" + id;
-
-        String cached =
-                redisTemplate.opsForValue().get(key);
-
-        if (cached != null) {
-            System.out.println("Redis hit: " + key);
-
-            return ResponseEntity.ok(
-                    jsonMapper.readValue(cached, Note.class)
-            );
+    public ResponseEntity<?> get(@PathVariable Long id, HttpSession session) {
+        Long userId = (Long) session.getAttribute("userId");
+        if (userId == null) {
+            return ResponseEntity.status(401)
+                    .body(Map.of("message", "please login first"));
         }
 
-        System.out.println("Redis miss: " + key);
+        // Scope cache entries by identity. Never consult the former global "note:{id}" key.
+        String key = "note:" + userId + ":" + id;
+        String cached = redisTemplate.opsForValue().get(key);
+        if (cached != null) {
+            Note note = jsonMapper.readValue(cached, Note.class);
+            if (userId.equals(note.getAuthorId())) {
+                return ResponseEntity.ok(note);
+            }
+            redisTemplate.delete(key);
+        }
 
-        Note note = noteMapper.selectById(id);
-
+        Note note = noteAccessService.findOwned(id, userId);
         if (note == null) {
+            // Do not reveal whether another user owns the ID.
             return ResponseEntity.notFound().build();
         }
-
         redisTemplate.opsForValue().set(
-                key,
-                jsonMapper.writeValueAsString(note),
-                Duration.ofMinutes(10)
-        );
-
+                key, jsonMapper.writeValueAsString(note), Duration.ofMinutes(10));
         return ResponseEntity.ok(note);
     }
 
@@ -117,15 +122,9 @@ public class NoteController {
                     .body(Map.of("message", "please login first"));
         }
 
-        Note oldNote = noteMapper.selectById(id);
-
+        Note oldNote = noteAccessService.findOwned(id, userId);
         if (oldNote == null) {
             return ResponseEntity.notFound().build();
-        }
-
-        if (!oldNote.getAuthorId().equals(userId)) {
-            return ResponseEntity.status(403)
-                    .body(Map.of("message", "this note is not yours"));
         }
 
         NoteOperationMessage message =
@@ -158,15 +157,9 @@ public class NoteController {
                     .body(Map.of("message", "please login first"));
         }
 
-        Note note = noteMapper.selectById(id);
-
+        Note note = noteAccessService.findOwned(id, userId);
         if (note == null) {
             return ResponseEntity.notFound().build();
-        }
-
-        if (!note.getAuthorId().equals(userId)) {
-            return ResponseEntity.status(403)
-                    .body(Map.of("message", "this note is not yours"));
         }
 
         NoteOperationMessage message =
