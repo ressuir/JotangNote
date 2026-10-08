@@ -22,7 +22,7 @@
 ## 初次初始化
 
 1. 启动 MySQL、Redis、RabbitMQ。
-2. 执行数据库建表文件（新数据库）：`mysql -u <管理员账号> -p < sql/schema.sql`。
+2. 执行数据库建表文件（新数据库）：`mysql -u root -p < sql/schema.sql`。
 3. 确保运行应用的 MySQL 账号对 `jotang_note` 数据库具有所需的读写权限。
 4. 在**启动应用的同一个终端**设置环境变量：
 
@@ -64,6 +64,8 @@ export DEEPSEEK_API_KEY='你的DeepSeek API Key' # 仅调用 AI 时必需
 ```bash
 ./mvnw -Dtest=NoteAccessServiceTest test
 ```
+
+启动应用后，可用 `bash scripts/smoke-test.sh` 复查注册登录、双用户笔记隔离和 MQ 增删改。
 
 提交前建议用两个新用户执行完整验收：A 创建笔记，B 的列表看不到，B 直接读取 A 的 ID 得到 404，B 用 AI 请求读取该 ID 也不能看到内容；A 能读取并修改、删除自己的笔记。反复保存和删除，确认 RabbitMQ 消费成功后页面状态正确。
 
