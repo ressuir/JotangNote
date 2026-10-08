@@ -280,16 +280,32 @@ async function saveNote() {
                 body: JSON.stringify({ title, content })
             });
 
-            showToast("修改已进入 RabbitMQ 队列");
-            await waitAndRefresh(id);
+            showToast("修改已提交，等待队列处理");
+            const changed = await pollNotes(notes =>
+                notes.find(note => note.id === id && note.title === title && note.content === content));
+            if (changed) {
+                await openNote(id);
+                els.saveStatus.textContent = "已保存";
+            } else {
+                els.saveStatus.textContent = "已入队，稍后刷新确认";
+            }
         } else {
+            const previousIds = new Set(state.notes.map(note => note.id));
             await api("/api/notes", {
                 method: "POST",
                 body: JSON.stringify({ title, content })
             });
 
-            showToast("创建已进入 RabbitMQ 队列");
-            await waitAndRefresh(null);
+            showToast("创建已提交，等待队列处理");
+            const created = await pollNotes(notes =>
+                notes.find(note => !previousIds.has(note.id)
+                    && note.title === title && note.content === content));
+            if (created) {
+                await openNote(created.id);
+                els.saveStatus.textContent = "已保存";
+            } else {
+                els.saveStatus.textContent = "已入队，稍后刷新确认";
+            }
         }
     } catch (error) {
         showToast(error.message);
@@ -299,21 +315,15 @@ async function saveNote() {
     }
 }
 
-async function waitAndRefresh(preferredId) {
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    await loadNotes();
-
-    let next = preferredId
-        ? state.notes.find((note) => note.id === preferredId)
-        : state.notes.find((note) => state.user && note.authorId === state.user.id);
-
-    if (next) {
-        await openNote(next.id);
-        els.saveStatus.textContent = "已保存";
-    } else {
-        clearEditor();
-        els.saveStatus.textContent = "已提交";
+// MQ consumers run asynchronously; 202 Accepted does not mean the write is complete.
+async function pollNotes(check, attempts = 10) {
+    for (let i = 0; i < attempts; i++) {
+        await new Promise(resolve => setTimeout(resolve, 250 + i * 100));
+        await loadNotes();
+        const result = check(state.notes);
+        if (result) return result;
     }
+    return null;
 }
 
 async function deleteNote() {
@@ -328,8 +338,10 @@ async function deleteNote() {
         await api("/api/notes/" + id, { method: "DELETE" });
         showToast("删除已进入 RabbitMQ 队列");
         clearEditor();
-        await new Promise((resolve) => setTimeout(resolve, 450));
-        await loadNotes();
+        const removed = await pollNotes(notes => !notes.some(note => note.id === id));
+        if (!removed) {
+            showToast("删除已入队，稍后刷新确认");
+        }
     } catch (error) {
         showToast(error.message);
     } finally {
