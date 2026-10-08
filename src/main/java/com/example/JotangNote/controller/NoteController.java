@@ -95,22 +95,32 @@ public class NoteController {
 
         // Scope cache entries by identity. Never consult the former global "note:{id}" key.
         String key = "note:" + userId + ":" + id;
-        String cached = redisTemplate.opsForValue().get(key);
-        if (cached != null) {
-            Note note = jsonMapper.readValue(cached, Note.class);
-            if (userId.equals(note.getAuthorId())) {
-                return ResponseEntity.ok(note);
+        // Cache failure must not bypass authorization or make a readable note unavailable.
+        try {
+            String cached = redisTemplate.opsForValue().get(key);
+            if (cached != null) {
+                Note cachedNote = jsonMapper.readValue(cached, Note.class);
+                if (userId.equals(cachedNote.getAuthorId())) {
+                    return ResponseEntity.ok(cachedNote);
+                }
+                redisTemplate.delete(key);
             }
-            redisTemplate.delete(key);
+        } catch (Exception cacheFailure) {
+            System.err.println("Redis read failed, falling back to MySQL: "
+                    + cacheFailure.getClass().getSimpleName());
         }
 
         Note note = noteAccessService.findOwned(id, userId);
         if (note == null) {
-            // Do not reveal whether another user owns the ID.
             return ResponseEntity.notFound().build();
         }
-        redisTemplate.opsForValue().set(
-                key, jsonMapper.writeValueAsString(note), Duration.ofMinutes(10));
+        try {
+            redisTemplate.opsForValue().set(
+                    key, jsonMapper.writeValueAsString(note), Duration.ofMinutes(10));
+        } catch (Exception cacheFailure) {
+            System.err.println("Redis write failed: "
+                    + cacheFailure.getClass().getSimpleName());
+        }
         return ResponseEntity.ok(note);
     }
 
