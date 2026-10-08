@@ -82,6 +82,7 @@ public class ChatController {
             String reply =
                     chatService.chat(
                             conversationId,
+                            userId,
                             request.message()
                     );
 
