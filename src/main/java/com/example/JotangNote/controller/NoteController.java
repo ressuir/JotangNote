@@ -1,7 +1,6 @@
 package com.example.JotangNote.controller;
 
 import com.example.JotangNote.entity.Note;
-import com.example.JotangNote.mapper.NoteMapper;
 import com.example.JotangNote.mq.NoteOperationMessage;
 import com.example.JotangNote.mq.RabbitConfig;
 import com.example.JotangNote.service.NoteAccessService;
@@ -20,20 +19,17 @@ import java.util.Map;
 @RequestMapping("/api/notes")
 public class NoteController {
 
-    private final NoteMapper noteMapper;
     private final NoteAccessService noteAccessService;
     private final StringRedisTemplate redisTemplate;
     private final JsonMapper jsonMapper;
     private final RabbitTemplate rabbitTemplate;
 
     public NoteController(
-            NoteMapper noteMapper,
             NoteAccessService noteAccessService,
             StringRedisTemplate redisTemplate,
             JsonMapper jsonMapper,
             RabbitTemplate rabbitTemplate) {
 
-        this.noteMapper = noteMapper;
         this.noteAccessService = noteAccessService;
         this.redisTemplate = redisTemplate;
         this.jsonMapper = jsonMapper;
