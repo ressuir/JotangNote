@@ -241,3 +241,60 @@ body.ai-open .app-shell { padding-right: var(--assistant-width); }
   .chat-panel { top: 68px; }
   .chat-header { height: 68px; }
 }
+
+/* Compact writing workspace: fewer permanent controls and more room for text. */
+.topbar { z-index: 45; } /* Keep account menu above the existing AI side panel. */
+.nav-item.active { position: relative; background: #f1f2f0; color: #252825; font-weight: 620; }
+.nav-item.active::before, .note-item.active::before {
+  content: ""; position: absolute; left: 0; top: 10px; bottom: 10px;
+  width: 2px; border-radius: 2px; background: #696e69;
+}
+.note-item.active { position: relative; background: #f1f2f0; font-weight: 580; }
+.sidebar-section-title { margin-top: 34px; padding-right: 0; }
+.sidebar-tools { display: flex; align-items: center; gap: 2px; }
+.sidebar-section-title .sidebar-tools button { opacity: .85; }
+.sort-select {
+  color: #767b76; background: transparent; border: 0; border-radius: 5px;
+  font-size: 11px; max-width: 92px; padding: 6px 2px; cursor: pointer;
+}
+.sort-select:hover, .sort-select:focus-visible { color: #323632; background: var(--hover); }
+.notes-load-error { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: #98664e; padding: 9px 7px; font-size: 12px; }
+.notes-load-error button, .status-retry { border: 0; background: transparent; padding: 4px 6px; border-radius: 4px; color: #4a554a; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.notes-load-error button:hover, .status-retry:hover { background: var(--hover); }
+
+.editor-toolbar { min-height: 64px; padding: 7px clamp(34px, 5vw, 72px) 0; align-items: center; justify-content: flex-end; }
+.editor-actions { gap: 8px; }
+.save-button, .delete-note-button { width: 38px; height: 38px; padding: 9px; border: 0; color: #646965; border-radius: 6px; }
+.save-button:hover:not(:disabled), .delete-note-button:hover:not(:disabled) { background: var(--hover); }
+.save-button.is-dirty:not(:disabled) { color: #2d342e; background: #f1f2ee; }
+.delete-note-button:hover:not(:disabled) { color: #ad4942; background: #fbf2f0; }
+.editor-scroll { padding-top: 16px; }
+.editor-meta-line { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin: 12px 0 18px; min-height: 21px; }
+.editor-date { margin: 0; color: #919591; font-size: 12px; }
+.meta-separator { color: #c3c6c2; }
+.save-status { display: inline-flex; align-items: center; gap: 6px; color: #858985; font-size: 12px; margin: 0; max-width: none; }
+.save-status::before { content: ""; display: inline-block; flex: none; width: 6px; height: 6px; border-radius: 50%; background: #a2aaa2; }
+.save-status[data-status="dirty"]::before, .save-status[data-status="pending"]::before { background: #bc9360; }
+.save-status[data-status="error"] { color: #ad4942; }
+.save-status[data-status="error"]::before { background: #ad4942; }
+.save-status[data-status="busy"]::before {
+  width: 9px; height: 9px; background: transparent;
+  border: 1.5px solid #d9ded7; border-top-color: #737b72;
+  animation: note-status-spin .8s linear infinite;
+}
+@keyframes note-status-spin { to { transform: rotate(360deg); } }
+.note-content { padding-top: 24px; }
+@media (max-width: 1050px) {
+  .editor-toolbar { padding-left: 42px; padding-right: 38px; }
+}
+@media (max-width: 650px) {
+  .editor-toolbar { min-height: 56px; padding: 8px 20px 0; }
+  .editor-scroll { padding: 14px 24px 15px; }
+  .editor-meta-line { gap: 7px; margin: 10px 0 16px; }
+  .save-status { max-width: none; }
+  .editor-actions { gap: 6px; }
+  .note-content { padding-top: 22px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .save-status[data-status="busy"]::before { animation: none; border-top-color: #737b72; }
+}
