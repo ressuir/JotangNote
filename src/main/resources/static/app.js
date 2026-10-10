@@ -7,7 +7,8 @@ const state = {
   notes: [],
   activeNote: null,
   authMode: "login",
-  filter: "all",
+  sort: "recent",
+  hasConfirmedSave: false,
   dirty: false,
   busy: false,
   requestSerial: 0,
@@ -20,16 +21,16 @@ const els = {
   authHint: $("authHint"), usernameInput: $("usernameInput"), passwordInput: $("passwordInput"),
   userBadge: $("userBadge"), logoutButton: $("logoutButton"), menuButton: $("menuButton"),
   notesPanel: $("notesPanel"), sidebarBackdrop: $("sidebarBackdrop"),
-  newNoteButton: $("newNoteButton"), allNotesNav: $("allNotesNav"), recentNotesNav: $("recentNotesNav"),
+  newNoteButton: $("newNoteButton"), allNotesNav: $("allNotesNav"), sortOrder: $("sortOrder"),
   notesList: $("notesList"), noteSearch: $("noteSearch"), sidebarSearch: $("sidebarSearch"), closeSearchButton: $("closeSearchButton"),
-  searchButton: $("searchButton"), refreshNotesButton: $("refreshNotesButton"),
-  noteMeta: $("noteMeta"), noteDate: $("noteDate"), noteTitle: $("noteTitle"),
+  searchButton: $("searchButton"), notesLoadError: $("notesLoadError"), retryNotesButton: $("retryNotesButton"), retryStatusButton: $("retryStatusButton"),
+  noteDate: $("noteDate"), noteTitle: $("noteTitle"),
   noteContent: $("noteContent"), saveNoteButton: $("saveNoteButton"),
   deleteNoteButton: $("deleteNoteButton"), saveStatus: $("saveStatus"), charCount: $("charCount"),
   aiButton: $("aiButton"), chatPanel: $("chatPanel"), chatBackdrop: $("chatBackdrop"),
   closeChatButton: $("closeChatButton"), chatMessages: $("chatMessages"),
   chatForm: $("chatForm"), chatInput: $("chatInput"), sendChatButton: $("sendChatButton"),
-  newChatButton: $("newChatButton"), accountMenuButton: $("accountMenuButton"), accountMenu: $("accountMenu"), noteMoreButton: $("noteMoreButton"), noteMoreMenu: $("noteMoreMenu")
+  newChatButton: $("newChatButton"), accountMenuButton: $("accountMenuButton"), accountMenu: $("accountMenu")
 };
 
 async function api(url, options = {}) {
@@ -149,14 +150,9 @@ function focusSearch() {
   els.noteSearch.focus();
   els.noteSearch.select();
 }
-function setFilter(filter) {
-  state.filter = filter;
-  for (const [button, value] of [[els.allNotesNav, "all"], [els.recentNotesNav, "recent"]]) {
-    const active = filter === value;
-    button.classList.toggle("active", active);
-    if (active) button.setAttribute("aria-current", "page");
-    else button.removeAttribute("aria-current");
-  }
+function setSort(sort) {
+  state.sort = sort === "created" ? "created" : "recent";
+  els.sortOrder.value = state.sort;
   renderNotes();
 }
 
@@ -185,11 +181,15 @@ async function loadNotes({ silent = false } = {}) {
     if (state.user?.id !== userId) return false;
     if (!Array.isArray(notes)) throw new Error("笔记列表响应格式不正确");
     state.notes = notes;
+    els.notesLoadError.hidden = true;
     reconcilePendingOperation();
     renderNotes();
     return true;
   } catch (error) {
-    if (!silent) showToast(`加载笔记失败：${error.message}`);
+    if (!silent) {
+      showToast(`加载笔记失败：${error.message}`);
+      if (error.status !== 401) els.notesLoadError.hidden = false;
+    }
     if (error.status === 401) { setUser(null); }
     return false;
   }
@@ -218,12 +218,15 @@ function reconcilePendingOperation() {
     state.activeNote = found;
     fillEditor(found);
   }
-  setSaveStatus("已保存");
+  if (pending.type !== "delete") {
+    state.hasConfirmedSave = true;
+    setSaveStatus("已保存", "saved");
+  }
   updateActions();
 }
 function sortedNotes() {
   const list = [...state.notes];
-  if (state.filter === "recent") {
+  if (state.sort === "recent") {
     list.sort((a, b) => {
       const aTime = Date.parse(a.updatedAt || a.createdAt || "") || 0;
       const bTime = Date.parse(b.updatedAt || b.createdAt || "") || 0;
@@ -251,31 +254,43 @@ function renderNotes() {
 }
 
 function setSaveStatus(text, kind = "") {
+  const mode = kind || (/失败/.test(text) ? "error"
+    : /正在/.test(text) ? "busy"
+    : /待确认|已入队/.test(text) ? "pending"
+    : /尚未保存|未保存/.test(text) ? "dirty"
+    : text === "已保存" ? "saved" : "idle");
   els.saveStatus.textContent = text;
-  els.saveStatus.classList.toggle("is-dirty", kind === "dirty");
-  els.saveStatus.classList.toggle("is-error", kind === "error");
+  els.saveStatus.dataset.status = mode;
+  els.retryStatusButton.hidden = mode !== "pending";
 }
 function updateActions() {
   const pending = Boolean(state.pendingOperation);
   els.saveNoteButton.disabled = state.busy || pending || !state.user;
+  els.saveNoteButton.classList.toggle("is-dirty", state.dirty && !pending);
+  els.saveNoteButton.setAttribute("aria-label", state.activeNote ? "保存笔记" : "创建笔记");
+  els.saveNoteButton.title = pending ? "等待后台确认写入" : state.activeNote ? "保存笔记 (Ctrl+S)" : "创建笔记 (Ctrl+S)";
   els.noteTitle.disabled = state.busy;
   els.noteContent.disabled = state.busy;
+  els.deleteNoteButton.hidden = !state.activeNote;
   els.deleteNoteButton.disabled = state.busy || pending || !state.activeNote || !state.user
     || state.activeNote.authorId !== state.user.id;
-  els.saveNoteButton.textContent = state.busy ? "处理中…" : pending ? "等待确认" : state.activeNote ? "保存" : "创建笔记";
-  els.saveNoteButton.title = pending ? "请求已入队，请点击刷新确认结果" : "";
 }
 function updateCharCount() { els.charCount.textContent = `${els.noteContent.value.length} 字符`; }
 function markEdited() {
   state.dirty = els.noteTitle.value !== state.baseline.title
     || els.noteContent.value !== state.baseline.content;
-  if (!state.pendingOperation) setSaveStatus(state.dirty ? "尚未保存" : "已保存", state.dirty ? "dirty" : "");
+  if (!state.pendingOperation) setSaveStatus(
+    state.dirty ? (state.hasConfirmedSave ? "尚未保存" : "尚未保存 · 需手动保存")
+      : state.activeNote ? "已保存" : "未保存",
+    state.dirty ? "dirty" : state.activeNote ? "saved" : "idle"
+  );
   updateCharCount();
+  updateActions();
 }
 function canLeaveEditor() {
   if (state.busy) { showToast("当前操作尚未结束，请稍候"); return false; }
   if (state.pendingOperation) {
-    showToast("操作已提交但尚未确认，请先刷新笔记列表");
+    showToast("操作仍在后台处理，请使用状态旁的「重新检查」");
     return false;
   }
   return !state.dirty || confirm("这篇笔记的修改尚未保存，确定放弃修改吗？");
@@ -285,9 +300,8 @@ function fillEditor(note) {
   els.noteContent.value = note.content || "";
   state.baseline = { title: els.noteTitle.value, content: els.noteContent.value };
   state.dirty = false;
-  els.noteMeta.textContent = note.title || `笔记 #${note.id}`;
-  els.noteDate.textContent = `${formatDate(note.updatedAt || note.createdAt) || ""} · 最近编辑`;
-  setSaveStatus("已保存");
+  els.noteDate.textContent = `更新于 ${formatDate(note.updatedAt || note.createdAt) || "未知日期"}`;
+  setSaveStatus("已保存", "saved");
   updateActions();
   updateCharCount();
   renderNotes();
@@ -298,11 +312,10 @@ function clearEditor({ force = false } = {}) {
   state.activeNote = null;
   state.dirty = false;
   state.baseline = { title: "", content: "" };
-  els.noteMeta.textContent = "新笔记";
   els.noteDate.textContent = "开始记录你的想法";
   els.noteTitle.value = "";
   els.noteContent.value = "";
-  setSaveStatus("未保存");
+  setSaveStatus("未保存", "idle");
   updateActions();
   updateCharCount();
   renderNotes();
@@ -370,11 +383,12 @@ async function saveNote() {
         state.activeNote = match;
         fillEditor(match);
       }
-      setSaveStatus("已保存");
+      state.hasConfirmedSave = true;
+      setSaveStatus("已保存", "saved");
       showToast(id ? "笔记已更新" : "笔记已创建");
     } else {
-      setSaveStatus("已入队，待确认", "dirty");
-      showToast("请求已提交，但尚未确认写入；可点击左侧刷新重试确认");
+      setSaveStatus("已入队，待确认", "pending");
+      showToast("请求已提交，稍后可在保存状态旁重新检查");
     }
   } catch (error) { setSaveStatus("保存失败", "error"); showToast(error.message); }
   finally { setBusy(false); }
@@ -394,8 +408,8 @@ async function deleteNote() {
       clearEditor({ force: true });
       showToast("笔记已删除");
     } else {
-      setSaveStatus("删除已入队，待确认", "dirty");
-      showToast("删除请求已提交，稍后可刷新确认");
+      setSaveStatus("删除已入队，待确认", "pending");
+      showToast("删除请求已提交，稍后可重新检查");
     }
   } catch (error) { setSaveStatus("删除失败", "error"); showToast(error.message); }
   finally { setBusy(false); }
@@ -443,9 +457,7 @@ els.registerTab.addEventListener("click", () => setAuthMode("register"));
 els.authForm.addEventListener("submit", submitAuth);
 function closeMenus() {
   els.accountMenu.hidden = true;
-  els.noteMoreMenu.hidden = true;
   els.accountMenuButton.setAttribute("aria-expanded", "false");
-  els.noteMoreButton.setAttribute("aria-expanded", "false");
 }
 function toggleMenu(button, menu) {
   const open = menu.hidden;
@@ -454,7 +466,6 @@ function toggleMenu(button, menu) {
   button.setAttribute("aria-expanded", String(open));
 }
 els.accountMenuButton.addEventListener("click", () => toggleMenu(els.accountMenuButton, els.accountMenu));
-els.noteMoreButton.addEventListener("click", () => toggleMenu(els.noteMoreButton, els.noteMoreMenu));
 document.addEventListener("pointerdown", (event) => {
   if (!event.target.closest(".popover-anchor")) closeMenus();
 });
@@ -469,18 +480,23 @@ els.closeSearchButton.addEventListener("click", () => {
   els.searchButton.focus();
 });
 els.newNoteButton.addEventListener("click", () => { if (clearEditor()) els.noteTitle.focus(); });
-els.allNotesNav.addEventListener("click", () => setFilter("all"));
-els.recentNotesNav.addEventListener("click", () => setFilter("recent"));
-els.refreshNotesButton.addEventListener("click", () => loadNotes());
+els.allNotesNav.addEventListener("click", () => { els.noteSearch.value = ""; renderNotes(); });
+els.sortOrder.addEventListener("change", (event) => setSort(event.target.value));
+els.retryNotesButton.addEventListener("click", () => loadNotes());
+els.retryStatusButton.addEventListener("click", async () => {
+  if (!state.pendingOperation) return;
+  const loaded = await loadNotes();
+  if (loaded && state.pendingOperation) showToast("操作仍在处理中，请稍后再检查");
+});
 els.noteSearch.addEventListener("input", renderNotes);
 els.notesList.addEventListener("click", (event) => {
   const target = event.target.closest("[data-note-id]");
   if (target) openNote(Number(target.dataset.noteId));
 });
-els.noteTitle.addEventListener("input", () => { markEdited(); if (!state.activeNote) els.noteMeta.textContent = els.noteTitle.value.trim() || "新笔记"; });
+els.noteTitle.addEventListener("input", markEdited);
 els.noteContent.addEventListener("input", markEdited);
 els.saveNoteButton.addEventListener("click", saveNote);
-els.deleteNoteButton.addEventListener("click", () => { closeMenus(); deleteNote(); });
+els.deleteNoteButton.addEventListener("click", deleteNote);
 els.aiButton.addEventListener("click", () => setChat(!els.chatPanel.classList.contains("open")));
 els.closeChatButton.addEventListener("click", () => setChat(false));
 els.chatBackdrop.addEventListener("click", () => setChat(false));
