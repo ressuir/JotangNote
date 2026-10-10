@@ -19,8 +19,7 @@
         </span>
         <span class="brand-wordmark">JotangNote</span>
       </div>
-      <h1 class="auth-title">你的想法，值得被记录。</h1>
-      <p class="auth-description">一个安静、专注的笔记空间。</p>
+      <h1 class="auth-title">登录 JotangNote</h1>
       <div class="auth-tabs" role="group" aria-label="账户操作">
         <button id="loginTab" type="button" class="auth-tab active">登录</button>
         <button id="registerTab" type="button" class="auth-tab">注册</button>
@@ -53,10 +52,19 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 5 5"/></svg>
       </button>
       <button id="aiButton" type="button" class="icon-button" aria-label="打开 AI 助手" aria-controls="chatPanel" aria-expanded="false" title="AI 助手">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2 1.9 5.9L20 10l-6.1 2.1L12 18l-1.9-5.9L4 10l6.1-2.1z"/><path d="m19 17 .8 2.2L22 20l-2.2.8L19 23l-.8-2.2L16 20l2.2-.8z"/></svg>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11.5a7.8 7.8 0 0 1-8 7.5 8.8 8.8 0 0 1-3.5-.7L4 20l1.4-4A7.3 7.3 0 0 1 4 11.5 7.8 7.8 0 0 1 12 4a7.8 7.8 0 0 1 8 7.5z"/></svg>
       </button>
-      <span id="userBadge" class="user-badge" title="当前账号">未登录</span>
-      <button id="logoutButton" type="button" class="text-button logout-button">退出</button>
+      <div class="popover-anchor">
+        <button id="accountMenuButton" type="button" class="icon-button" aria-label="账户设置" aria-expanded="false" aria-controls="accountMenu" title="账户设置">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.5 1.5 0 0 0 .3 1.7l.1.1-2 2-.1-.1A1.5 1.5 0 0 0 16 18.4a1.5 1.5 0 0 0-1.2 1.4V20h-2.8v-.2a1.5 1.5 0 0 0-1.2-1.4 1.5 1.5 0 0 0-1.7.3l-.1.1-2-2 .1-.1a1.5 1.5 0 0 0 .3-1.7A1.5 1.5 0 0 0 6 13.8H5.8v-2.8H6a1.5 1.5 0 0 0 1.4-1.2 1.5 1.5 0 0 0-.3-1.7L7 8l2-2 .1.1a1.5 1.5 0 0 0 1.7.3A1.5 1.5 0 0 0 12 5.2V5h2.8v.2A1.5 1.5 0 0 0 16 6.4a1.5 1.5 0 0 0 1.7-.3l.1-.1 2 2-.1.1a1.5 1.5 0 0 0-.3 1.7 1.5 1.5 0 0 0 1.4 1.2h.2v2.8h-.2a1.5 1.5 0 0 0-1.4 1.2z" transform="translate(-1.4,-.4) scale(1.08)"/></svg>
+        </button>
+        <div id="accountMenu" class="popover-menu account-menu" hidden>
+          <div class="account-label">当前账号</div>
+          <div id="userBadge" class="user-badge">未登录</div>
+          <div class="menu-divider"></div>
+          <button id="logoutButton" type="button" class="menu-action">退出登录</button>
+        </div>
+      </div>
     </div>
   </header>
 
@@ -73,35 +81,41 @@
       <nav class="nav-group" aria-label="笔记视图">
         <button id="allNotesNav" class="nav-item active" type="button" aria-current="page">
           <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>
-          <span>全部笔记</span><span id="notesCount" class="nav-count">0</span>
+          <span>全部笔记</span>
         </button>
         <button id="recentNotesNav" class="nav-item" type="button">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h11"/></svg>
           <span>最近编辑</span>
         </button>
       </nav>
       <div class="sidebar-section-title">
-        <span>我的笔记</span>
-        <button id="refreshNotesButton" type="button" class="icon-button icon-button-small" aria-label="刷新笔记列表" title="刷新列表">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5"/><path d="M4 17v-5h5"/><path d="M5.7 9A7 7 0 0 1 18 7l2 5M4 12l2 5a7 7 0 0 0 12.3-2"/></svg>
+        <span>笔记列表</span>
+        <button id="refreshNotesButton" type="button" class="icon-button icon-button-small" aria-label="刷新笔记列表" title="刷新笔记列表">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M5.7 9A7 7 0 0 1 18 7l2 5M4 12l2 5a7 7 0 0 0 12.3-2"/></svg>
         </button>
       </div>
-      <div class="sidebar-search">
+      <div id="sidebarSearch" class="sidebar-search" hidden>
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 5 5"/></svg>
-        <input id="noteSearch" type="search" autocomplete="off" placeholder="搜索笔记" aria-label="搜索标题或正文">
-        <kbd>⌘ K</kbd>
+        <input id="noteSearch" type="search" autocomplete="off" placeholder="搜索标题或正文" aria-label="搜索标题或正文">
+        <button id="closeSearchButton" class="search-close" type="button" aria-label="关闭搜索">×</button>
       </div>
       <div id="notesList" class="notes-list" aria-label="笔记列表"><div class="empty-state">正在加载笔记…</div></div>
-      <div class="sidebar-bottom">一个安静的思考空间</div>
     </aside>
 
     <section class="editor-panel" aria-label="笔记编辑区">
       <div class="editor-toolbar">
-        <div class="breadcrumb"><span>我的笔记</span><span class="breadcrumb-slash">/</span><span id="noteMeta">新笔记</span></div>
+        <div class="breadcrumb"><span>笔记</span><span class="breadcrumb-slash">/</span><span id="noteMeta">新笔记</span></div>
         <div class="editor-actions">
           <span id="saveStatus" class="save-status" role="status" aria-live="polite">未保存</span>
-          <button id="deleteNoteButton" class="text-button danger-button" type="button" disabled>删除</button>
-          <button id="saveNoteButton" class="button button-primary" type="button">创建笔记</button>
+          <button id="saveNoteButton" class="save-button" type="button">创建笔记</button>
+          <div class="popover-anchor">
+            <button id="noteMoreButton" class="icon-button note-more-button" type="button" aria-label="更多笔记操作" aria-expanded="false" aria-controls="noteMoreMenu" title="更多操作">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1" fill="currentColor" stroke="none"/></svg>
+            </button>
+            <div id="noteMoreMenu" class="popover-menu note-more-menu" hidden>
+              <button id="deleteNoteButton" class="menu-action danger-button" type="button" disabled>删除这篇笔记</button>
+            </div>
+          </div>
         </div>
       </div>
       <div class="editor-scroll">
@@ -114,9 +128,7 @@
           <textarea id="noteContent" class="note-content" maxlength="100000" spellcheck="false" placeholder="开始写点什么…"></textarea>
         </div>
       </div>
-      <div class="editor-footer">
-        <span>专注于你的想法</span><span id="charCount">0 字符</span>
-      </div>
+      <div class="editor-footer"><span id="charCount">0 字符</span></div>
     </section>
   </main>
 
