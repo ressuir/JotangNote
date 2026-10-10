@@ -1,10 +1,14 @@
-name: Build and integration tests
+name: Verify and document JotangNote
 
 on:
   pull_request:
   push:
     branches:
-      - fix/submission-security-20261008
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   unit-tests:
@@ -16,7 +20,7 @@ jobs:
           distribution: temurin
           java-version: '17'
           cache: maven
-      - name: Run isolated note authorization tests
+      - name: Run isolated authorization and AI tool tests
         run: bash ./mvnw -B '-Dtest=NoteAccessServiceTest,ChatServiceTest' test
 
   integration-tests:
@@ -61,16 +65,16 @@ jobs:
           distribution: temurin
           java-version: '17'
           cache: maven
-      - name: Initialize schema
+      - name: Initialize MySQL schema
         run: |
           if ! command -v mysql >/dev/null; then
             sudo apt-get update -qq
-            sudo apt-get install -y default-mysql-client
+            sudo apt-get install -y default-mysql-client redis-tools
           fi
           mysql -h 127.0.0.1 -u root -ptestpass < sql/schema.sql
-      - name: Run all Maven tests
+      - name: Run Maven tests
         run: bash ./mvnw -B test
-      - name: Start server and smoke-test HTTP API
+      - name: Start server
         run: |
           bash ./mvnw -B -DskipTests spring-boot:run > /tmp/jotang-server.log 2>&1 &
           for i in {1..60}; do
@@ -83,7 +87,38 @@ jobs:
             cat /tmp/jotang-server.log
             exit 1
           fi
-          bash scripts/smoke-test.sh
+      - name: Real HTTP smoke test with MySQL, Redis and RabbitMQ
+        run: bash scripts/smoke-test.sh | tee /tmp/jotang-smoke.log
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install browser
+        run: |
+          npm install --no-save --package-lock=false playwright@1.57.0
+          npx playwright install --with-deps chromium
+      - name: Browser integration test and genuine screenshots
+        run: node scripts/browser-evidence.cjs
+      - name: Upload test logs and browser screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jotang-test-evidence
+          path: |
+            Notes/screenshots/*.png
+            /tmp/jotang-smoke.log
+            /tmp/jotang-server.log
+          if-no-files-found: warn
+          retention-days: 30
+      - name: Publish screenshots into the submitted repository
+        if: success() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add Notes/screenshots/*.png
+          if ! git diff --cached --quiet; then
+            git commit -m "docs: capture real browser and CI test screenshots"
+            git push
+          fi
       - name: Print server logs on failure
         if: failure()
-        run: cat /tmp/jotang-server.log 2>/dev/null || true
+        run: tail -n 160 /tmp/jotang-server.log 2>/dev/null || true
