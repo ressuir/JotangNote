@@ -1,445 +1,486 @@
-const state = {
-    user: null,
-    notes: [],
-    activeNote: null,
-    authMode: "login"
-};
+"use strict";
 
+// The page is served by Spring Boot itself; existing session-cookie APIs are preserved.
 const $ = (id) => document.getElementById(id);
-
+const state = {
+  user: null,
+  notes: [],
+  activeNote: null,
+  authMode: "login",
+  filter: "all",
+  dirty: false,
+  busy: false,
+  requestSerial: 0,
+  baseline: { title: "", content: "" },
+  pendingOperation: null
+};
 const els = {
-    authOverlay: $("authOverlay"),
-    loginTab: $("loginTab"),
-    registerTab: $("registerTab"),
-    authForm: $("authForm"),
-    authSubmit: $("authSubmit"),
-    authHint: $("authHint"),
-    usernameInput: $("usernameInput"),
-    passwordInput: $("passwordInput"),
-    userBadge: $("userBadge"),
-    logoutButton: $("logoutButton"),
-    notesList: $("notesList"),
-    noteSearch: $("noteSearch"),
-    refreshNotesButton: $("refreshNotesButton"),
-    newNoteButton: $("newNoteButton"),
-    noteMeta: $("noteMeta"),
-    noteTitle: $("noteTitle"),
-    noteContent: $("noteContent"),
-    saveNoteButton: $("saveNoteButton"),
-    deleteNoteButton: $("deleteNoteButton"),
-    saveStatus: $("saveStatus"),
-    charCount: $("charCount"),
-    chatMessages: $("chatMessages"),
-    chatForm: $("chatForm"),
-    chatInput: $("chatInput"),
-    sendChatButton: $("sendChatButton"),
-    newChatButton: $("newChatButton"),
-    toast: $("toast")
+  toast: $("toast"), authOverlay: $("authOverlay"), authForm: $("authForm"),
+  loginTab: $("loginTab"), registerTab: $("registerTab"), authSubmit: $("authSubmit"),
+  authHint: $("authHint"), usernameInput: $("usernameInput"), passwordInput: $("passwordInput"),
+  userBadge: $("userBadge"), logoutButton: $("logoutButton"), menuButton: $("menuButton"),
+  notesPanel: $("notesPanel"), sidebarBackdrop: $("sidebarBackdrop"),
+  newNoteButton: $("newNoteButton"), allNotesNav: $("allNotesNav"), recentNotesNav: $("recentNotesNav"),
+  notesCount: $("notesCount"), notesList: $("notesList"), noteSearch: $("noteSearch"),
+  searchButton: $("searchButton"), refreshNotesButton: $("refreshNotesButton"),
+  noteMeta: $("noteMeta"), noteDate: $("noteDate"), noteTitle: $("noteTitle"),
+  noteContent: $("noteContent"), saveNoteButton: $("saveNoteButton"),
+  deleteNoteButton: $("deleteNoteButton"), saveStatus: $("saveStatus"), charCount: $("charCount"),
+  aiButton: $("aiButton"), chatPanel: $("chatPanel"), chatBackdrop: $("chatBackdrop"),
+  closeChatButton: $("closeChatButton"), chatMessages: $("chatMessages"),
+  chatForm: $("chatForm"), chatInput: $("chatInput"), sendChatButton: $("sendChatButton"),
+  newChatButton: $("newChatButton")
 };
 
 async function api(url, options = {}) {
-    const response = await fetch(url, {
-        credentials: "same-origin",
-        headers: {
-            "Content-Type": "application/json",
-            ...(options.headers || {})
-        },
-        ...options
-    });
-
-    let body = null;
-    const text = await response.text();
-
-    if (text) {
-        try {
-            body = JSON.parse(text);
-        } catch {
-            body = text;
-        }
-    }
-
-    if (!response.ok) {
-        const message = body && body.message
-            ? body.message
-            : "请求失败：" + response.status;
-        const error = new Error(message);
-        error.status = response.status;
-        throw error;
-    }
-
-    return body;
+  const response = await fetch(url, {
+    credentials: "same-origin",
+    ...options,
+    headers: { "Content-Type": "application/json", ...(options.headers || {}) }
+  });
+  const text = await response.text();
+  let body = null;
+  if (text) {
+    try { body = JSON.parse(text); } catch { body = text; }
+  }
+  if (!response.ok) {
+    const error = new Error(body && typeof body.message === "string"
+      ? body.message : `请求失败（HTTP ${response.status}）`);
+    error.status = response.status;
+    throw error;
+  }
+  return body;
 }
 
 function showToast(message) {
-    els.toast.textContent = message;
-    els.toast.classList.add("show");
-    clearTimeout(showToast.timer);
-    showToast.timer = setTimeout(() => {
-        els.toast.classList.remove("show");
-    }, 2200);
+  els.toast.textContent = message;
+  els.toast.classList.add("show");
+  clearTimeout(showToast.timer);
+  showToast.timer = setTimeout(() => els.toast.classList.remove("show"), 3000);
 }
 
 function escapeHtml(value) {
-    return String(value ?? "")
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#039;");
+  return String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;");
+}
+function formatDate(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("zh-CN", { year: "numeric", month: "long", day: "numeric" }).format(date);
 }
 
 function setAuthMode(mode) {
-    state.authMode = mode;
-    const login = mode === "login";
-
-    els.loginTab.classList.toggle("active", login);
-    els.registerTab.classList.toggle("active", !login);
-    els.authSubmit.textContent = login ? "登录" : "注册";
-    els.authHint.textContent = login
-        ? "登录后可以创建笔记、编辑自己的笔记并使用 AI。"
-        : "注册完成后会自动切换回登录。";
-    els.passwordInput.autocomplete = login ? "current-password" : "new-password";
+  state.authMode = mode;
+  const login = mode === "login";
+  els.loginTab.classList.toggle("active", login);
+  els.registerTab.classList.toggle("active", !login);
+  els.authSubmit.textContent = login ? "登录" : "注册";
+  els.authHint.textContent = login ? "登录后查看和编辑你的笔记。" : "用户名 2–32 字符；密码 8–72 字节。";
+  els.passwordInput.autocomplete = login ? "current-password" : "new-password";
 }
-
 function setUser(user) {
-    state.user = user;
-    els.userBadge.textContent = user
-        ? user.username + " · #" + user.id
-        : "未登录";
-    els.authOverlay.classList.toggle("hidden", Boolean(user));
+  state.user = user;
+  els.authOverlay.classList.toggle("hidden", Boolean(user));
+  els.userBadge.textContent = user ? user.username : "未登录";
 }
-
 async function restoreSession() {
-    try {
-        const user = await api("/api/auth/me");
-        setUser(user);
-        await loadNotes();
-    } catch {
-        setUser(null);
+  try {
+    const user = await api("/api/auth/me");
+    setUser(user);
+    await loadNotes();
+  } catch (error) {
+    if (error.status === 401) setUser(null);
+    else { setUser(null); showToast("无法连接服务器，请检查应用是否已启动"); }
+  }
+}
+async function submitAuth(event) {
+  event.preventDefault();
+  const username = els.usernameInput.value.trim();
+  const password = els.passwordInput.value;
+  if (!username || !password) { showToast("请输入用户名和密码"); return; }
+  if (state.authMode === "register") {
+    if (username.length < 2 || username.length > 32 || /\s/.test(username)
+      || new TextEncoder().encode(password).length < 8
+      || new TextEncoder().encode(password).length > 72) {
+      showToast("用户名需为 2–32 个非空白字符，密码为 8–72 字节"); return;
     }
+  }
+  els.authSubmit.disabled = true;
+  try {
+    if (state.authMode === "register") {
+      await api("/api/auth/register", { method: "POST", body: JSON.stringify({ username, password }) });
+      setAuthMode("login");
+      els.passwordInput.value = "";
+      els.passwordInput.focus();
+      showToast("注册成功，请登录");
+    } else {
+      const user = await api("/api/auth/login", { method: "POST", body: JSON.stringify({ username, password }) });
+      setUser(user);
+      els.passwordInput.value = "";
+      clearEditor({ force: true });
+      showToast("登录成功");
+      await loadNotes();
+    }
+  } catch (error) { showToast(error.message); }
+  finally { els.authSubmit.disabled = false; }
 }
 
-async function submitAuth(event) {
-    event.preventDefault();
-
-    const username = els.usernameInput.value.trim();
-    const password = els.passwordInput.value;
-
-    if (!username || !password) {
-        showToast("请输入用户名和密码");
-        return;
-    }
-
-    els.authSubmit.disabled = true;
-
-    try {
-        if (state.authMode === "register") {
-            await api("/api/auth/register", {
-                method: "POST",
-                body: JSON.stringify({ username, password })
-            });
-
-            showToast("注册成功，请登录");
-            setAuthMode("login");
-            els.passwordInput.value = "";
-            els.passwordInput.focus();
-            return;
-        }
-
-        const user = await api("/api/auth/login", {
-            method: "POST",
-            body: JSON.stringify({ username, password })
-        });
-
-        setUser(user);
-        els.passwordInput.value = "";
-        showToast("登录成功");
-        await loadNotes();
-    } catch (error) {
-        showToast(error.message);
-    } finally {
-        els.authSubmit.disabled = false;
-    }
+function setSidebar(open) {
+  const isOpen = Boolean(open);
+  els.notesPanel.classList.toggle("open", isOpen);
+  els.sidebarBackdrop.hidden = !isOpen;
+  els.menuButton.setAttribute("aria-expanded", String(isOpen));
+  els.menuButton.setAttribute("aria-label", isOpen ? "关闭导航栏" : "打开导航栏");
+}
+function setChat(open) {
+  const isOpen = Boolean(open);
+  els.chatPanel.classList.toggle("open", isOpen);
+  els.chatBackdrop.hidden = !isOpen;
+  els.chatPanel.setAttribute("aria-hidden", String(!isOpen));
+  els.aiButton.setAttribute("aria-expanded", String(isOpen));
+  if (isOpen) els.chatInput.focus();
+  else els.aiButton.focus();
+}
+function focusSearch() {
+  setSidebar(true);
+  els.noteSearch.focus();
+  els.noteSearch.select();
+}
+function setFilter(filter) {
+  state.filter = filter;
+  for (const [button, value] of [[els.allNotesNav, "all"], [els.recentNotesNav, "recent"]]) {
+    const active = filter === value;
+    button.classList.toggle("active", active);
+    if (active) button.setAttribute("aria-current", "page");
+    else button.removeAttribute("aria-current");
+  }
+  renderNotes();
 }
 
 async function logout() {
-    try {
-        await api("/api/auth/logout", { method: "POST" });
-    } catch {
-        // 即使服务端会话已失效，也清理前端状态。
-    }
+  if (!canLeaveEditor()) return;
+  try { await api("/api/auth/logout", { method: "POST" }); }
+  catch (error) {
+    if (error.status !== 401) { showToast(`退出失败：${error.message}`); return; }
+  }
+  state.requestSerial++;
+  state.notes = [];
+  state.pendingOperation = null;
+  state.busy = false;
+  clearEditor({ force: true });
+  setSidebar(false);
+  setChat(false);
+  setUser(null);
+  renderNotes();
+}
 
-    state.notes = [];
-    state.activeNote = null;
+async function loadNotes({ silent = false } = {}) {
+  const userId = state.user?.id;
+  if (!userId) return false;
+  try {
+    const notes = await api("/api/notes");
+    if (state.user?.id !== userId) return false;
+    if (!Array.isArray(notes)) throw new Error("笔记列表响应格式不正确");
+    state.notes = notes;
+    reconcilePendingOperation();
     renderNotes();
-    clearEditor();
-    setUser(null);
+    return true;
+  } catch (error) {
+    if (!silent) showToast(`加载笔记失败：${error.message}`);
+    if (error.status === 401) { setUser(null); }
+    return false;
+  }
 }
-
-async function loadNotes() {
-    try {
-        const notes = await api("/api/notes");
-        state.notes = Array.isArray(notes)
-            ? notes.sort((a, b) => Number(b.id) - Number(a.id))
-            : [];
-        renderNotes();
-
-        if (state.activeNote) {
-            const updated = state.notes.find((note) => note.id === state.activeNote.id);
-            if (updated) {
-                state.activeNote = updated;
-                fillEditor(updated);
-            }
-        }
-    } catch (error) {
-        showToast(error.message);
-    }
+function reconcilePendingOperation() {
+  const pending = state.pendingOperation;
+  if (!pending) return;
+  let found = null;
+  if (pending.type === "create") {
+    found = state.notes.find((note) => !pending.previousIds.has(note.id)
+      && note.title === pending.title && note.content === pending.content);
+  } else if (pending.type === "update") {
+    found = state.notes.find((note) => note.id === pending.id
+      && note.title === pending.title && note.content === pending.content);
+  } else if (pending.type === "delete") {
+    found = !state.notes.some((note) => note.id === pending.id);
+  }
+  if (!found) return;
+  state.pendingOperation = null;
+  if (pending.type === "create" && state.activeNote === null && !state.dirty) {
+    state.activeNote = found;
+    fillEditor(found);
+  } else if (pending.type === "delete" && state.activeNote?.id === pending.id) {
+    clearEditor({ force: true });
+  } else if (pending.type === "update" && state.activeNote?.id === pending.id && !state.dirty) {
+    state.activeNote = found;
+    fillEditor(found);
+  }
+  setSaveStatus("已保存");
+  updateActions();
 }
-
-function renderNotes() {
-    const keyword = els.noteSearch.value.trim().toLowerCase();
-    const filtered = state.notes.filter((note) => {
-        if (!keyword) return true;
-        return String(note.title || "").toLowerCase().includes(keyword)
-            || String(note.content || "").toLowerCase().includes(keyword);
+function sortedNotes() {
+  const list = [...state.notes];
+  if (state.filter === "recent") {
+    list.sort((a, b) => {
+      const aTime = Date.parse(a.updatedAt || a.createdAt || "") || 0;
+      const bTime = Date.parse(b.updatedAt || b.createdAt || "") || 0;
+      return bTime - aTime || Number(b.id) - Number(a.id);
     });
-
-    if (!filtered.length) {
-        els.notesList.innerHTML = '<div class="empty-state">没有匹配的笔记</div>';
-        return;
-    }
-
-    els.notesList.innerHTML = filtered.map((note) => {
-        const active = state.activeNote && state.activeNote.id === note.id ? " active" : "";
-        const mine = state.user && state.user.id === note.authorId ? "我的笔记" : "作者 #" + note.authorId;
-        return '<button class="note-item' + active + '" data-note-id="' + note.id + '">' +
-            '<div class="note-item-title">' + escapeHtml(note.title || "无标题") + '</div>' +
-            '<div class="note-item-preview">' + escapeHtml(note.content || "暂无正文") + '</div>' +
-            '<div class="note-item-meta">#' + note.id + ' · ' + escapeHtml(mine) + '</div>' +
-            '</button>';
-    }).join("");
+  } else list.sort((a, b) => Number(b.id) - Number(a.id));
+  return list;
+}
+function renderNotes() {
+  const keyword = els.noteSearch.value.trim().toLocaleLowerCase();
+  const filtered = sortedNotes().filter((note) => !keyword ||
+    String(note.title || "").toLocaleLowerCase().includes(keyword)
+    || String(note.content || "").toLocaleLowerCase().includes(keyword));
+  els.notesCount.textContent = String(state.notes.length);
+  if (!filtered.length) {
+    els.notesList.innerHTML = `<div class="empty-state">${keyword ? "没有找到匹配的笔记" : "还没有笔记，点击「新建笔记」开始"}</div>`;
+    return;
+  }
+  els.notesList.innerHTML = filtered.map((note) => {
+    const active = state.activeNote?.id === note.id;
+    return `<button type="button" class="note-item${active ? " active" : ""}" data-note-id="${Number(note.id)}" aria-current="${active ? "true" : "false"}">`
+      + `<span class="note-item-title">${escapeHtml(note.title || "无标题笔记")}</span>`
+      + `<span class="note-item-preview">${escapeHtml((note.content || "").replace(/\s+/g, " ") || "暂无正文")}</span>`
+      + `<span class="note-item-meta">${escapeHtml(formatDate(note.updatedAt || note.createdAt) || `#${note.id}`)}</span>`
+      + `</button>`;
+  }).join("");
 }
 
-async function openNote(id) {
-    try {
-        const note = await api("/api/notes/" + id);
-        state.activeNote = note;
-        fillEditor(note);
-        renderNotes();
-    } catch (error) {
-        showToast(error.message);
-    }
+function setSaveStatus(text, kind = "") {
+  els.saveStatus.textContent = text;
+  els.saveStatus.classList.toggle("is-dirty", kind === "dirty");
+  els.saveStatus.classList.toggle("is-error", kind === "error");
 }
-
+function updateActions() {
+  const pending = Boolean(state.pendingOperation);
+  els.saveNoteButton.disabled = state.busy || pending || !state.user;
+  els.noteTitle.disabled = state.busy;
+  els.noteContent.disabled = state.busy;
+  els.deleteNoteButton.disabled = state.busy || pending || !state.activeNote || !state.user
+    || state.activeNote.authorId !== state.user.id;
+  els.saveNoteButton.textContent = state.busy ? "处理中…" : pending ? "等待确认" : state.activeNote ? "保存" : "创建笔记";
+  els.saveNoteButton.title = pending ? "请求已入队，请点击刷新确认结果" : "";
+}
+function updateCharCount() { els.charCount.textContent = `${els.noteContent.value.length} 字符`; }
+function markEdited() {
+  state.dirty = els.noteTitle.value !== state.baseline.title
+    || els.noteContent.value !== state.baseline.content;
+  if (!state.pendingOperation) setSaveStatus(state.dirty ? "尚未保存" : "已保存", state.dirty ? "dirty" : "");
+  updateCharCount();
+}
+function canLeaveEditor() {
+  if (state.busy) { showToast("当前操作尚未结束，请稍候"); return false; }
+  if (state.pendingOperation) {
+    showToast("操作已提交但尚未确认，请先刷新笔记列表");
+    return false;
+  }
+  return !state.dirty || confirm("这篇笔记的修改尚未保存，确定放弃修改吗？");
+}
 function fillEditor(note) {
-    els.noteMeta.textContent = "NOTE #" + note.id + " · AUTHOR #" + note.authorId;
-    els.noteTitle.value = note.title || "";
-    els.noteContent.value = note.content || "";
-    els.deleteNoteButton.disabled = !state.user || state.user.id !== note.authorId;
-    els.saveNoteButton.textContent = "保存修改";
-    els.saveStatus.textContent = state.user && state.user.id === note.authorId
-        ? "可以编辑"
-        : "只读：不是你的笔记";
-    updateCharCount();
+  els.noteTitle.value = note.title || "";
+  els.noteContent.value = note.content || "";
+  state.baseline = { title: els.noteTitle.value, content: els.noteContent.value };
+  state.dirty = false;
+  els.noteMeta.textContent = note.title || `笔记 #${note.id}`;
+  els.noteDate.textContent = `${formatDate(note.updatedAt || note.createdAt) || ""} · 最近编辑`;
+  setSaveStatus("已保存");
+  updateActions();
+  updateCharCount();
+  renderNotes();
 }
-
-function clearEditor() {
-    state.activeNote = null;
-    els.noteMeta.textContent = "NEW NOTE";
-    els.noteTitle.value = "";
-    els.noteContent.value = "";
-    els.deleteNoteButton.disabled = true;
-    els.saveNoteButton.textContent = "创建笔记";
-    els.saveStatus.textContent = "未保存";
-    updateCharCount();
-    renderNotes();
+function clearEditor({ force = false } = {}) {
+  if (!force && !canLeaveEditor()) return false;
+  state.requestSerial++;
+  state.activeNote = null;
+  state.dirty = false;
+  state.baseline = { title: "", content: "" };
+  els.noteMeta.textContent = "新笔记";
+  els.noteDate.textContent = "开始记录你的想法";
+  els.noteTitle.value = "";
+  els.noteContent.value = "";
+  setSaveStatus("未保存");
+  updateActions();
+  updateCharCount();
+  renderNotes();
+  setSidebar(false);
+  return true;
 }
-
+async function openNote(id) {
+  if (state.activeNote?.id === id) { setSidebar(false); return; }
+  if (!canLeaveEditor()) return;
+  const serial = ++state.requestSerial;
+  try {
+    const note = await api(`/api/notes/${id}`);
+    if (serial !== state.requestSerial || !state.user) return;
+    state.activeNote = note;
+    fillEditor(note);
+    setSidebar(false);
+  } catch (error) {
+    if (serial === state.requestSerial) showToast(`打开笔记失败：${error.message}`);
+  }
+}
+function setBusy(busy) { state.busy = busy; updateActions(); }
+const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+async function pollNotes(predicate, attempts = 10) {
+  for (let i = 0; i < attempts; i++) {
+    await pause(260 + i * 100);
+    const loaded = await loadNotes({ silent: true });
+    if (loaded) {
+      const result = predicate(state.notes);
+      if (result) return result;
+    }
+  }
+  return null;
+}
 async function saveNote() {
-    const title = els.noteTitle.value.trim();
-    const content = els.noteContent.value;
-
-    if (!title) {
-        showToast("标题不能为空");
-        return;
+  if (state.busy || state.pendingOperation || !state.user) return;
+  const title = els.noteTitle.value.trim();
+  const content = els.noteContent.value;
+  if (!title) { showToast("请输入笔记标题"); els.noteTitle.focus(); return; }
+  if (title.length > 200 || content.length > 100000) { showToast("笔记长度超过限制"); return; }
+  if (state.activeNote && state.activeNote.authorId !== state.user.id) {
+    showToast("只能修改自己的笔记"); return;
+  }
+  const id = state.activeNote?.id;
+  const pending = id ? { type: "update", id, title, content }
+    : { type: "create", title, content, previousIds: new Set(state.notes.map((note) => note.id)) };
+  setBusy(true);
+  setSaveStatus("正在提交…");
+  try {
+    await api(id ? `/api/notes/${id}` : "/api/notes", {
+      method: id ? "PUT" : "POST", body: JSON.stringify({ title, content })
+    });
+    state.pendingOperation = pending;
+    state.baseline = { title: els.noteTitle.value, content };
+    state.dirty = false;
+    setSaveStatus("正在确认…");
+    const match = await pollNotes((notes) => pending.type === "create"
+      ? notes.find((note) => !pending.previousIds.has(note.id) && note.title === title && note.content === content)
+      : notes.find((note) => note.id === id && note.title === title && note.content === content));
+    if (match) {
+      // reconcilePendingOperation() already cleared the pending flag on the confirming GET.
+      if (pending.type === "create") {
+        state.activeNote = match;
+        fillEditor(match);
+      } else if (state.activeNote?.id === id) {
+        state.activeNote = match;
+        fillEditor(match);
+      }
+      setSaveStatus("已保存");
+      showToast(id ? "笔记已更新" : "笔记已创建");
+    } else {
+      setSaveStatus("已入队，待确认", "dirty");
+      showToast("请求已提交，但尚未确认写入；可点击左侧刷新重试确认");
     }
-
-    if (state.activeNote && state.user && state.activeNote.authorId !== state.user.id) {
-        showToast("只能修改自己的笔记");
-        return;
-    }
-
-    els.saveNoteButton.disabled = true;
-    els.saveStatus.textContent = "正在提交...";
-
-    try {
-        if (state.activeNote) {
-            const id = state.activeNote.id;
-            await api("/api/notes/" + id, {
-                method: "PUT",
-                body: JSON.stringify({ title, content })
-            });
-
-            showToast("修改已提交，等待队列处理");
-            const changed = await pollNotes(notes =>
-                notes.find(note => note.id === id && note.title === title && note.content === content));
-            if (changed) {
-                await openNote(id);
-                els.saveStatus.textContent = "已保存";
-            } else {
-                els.saveStatus.textContent = "已入队，稍后刷新确认";
-            }
-        } else {
-            const previousIds = new Set(state.notes.map(note => note.id));
-            await api("/api/notes", {
-                method: "POST",
-                body: JSON.stringify({ title, content })
-            });
-
-            showToast("创建已提交，等待队列处理");
-            const created = await pollNotes(notes =>
-                notes.find(note => !previousIds.has(note.id)
-                    && note.title === title && note.content === content));
-            if (created) {
-                await openNote(created.id);
-                els.saveStatus.textContent = "已保存";
-            } else {
-                els.saveStatus.textContent = "已入队，稍后刷新确认";
-            }
-        }
-    } catch (error) {
-        showToast(error.message);
-        els.saveStatus.textContent = "保存失败";
-    } finally {
-        els.saveNoteButton.disabled = false;
-    }
+  } catch (error) { setSaveStatus("保存失败", "error"); showToast(error.message); }
+  finally { setBusy(false); }
 }
-
-// MQ consumers run asynchronously; 202 Accepted does not mean the write is complete.
-async function pollNotes(check, attempts = 10) {
-    for (let i = 0; i < attempts; i++) {
-        await new Promise(resolve => setTimeout(resolve, 250 + i * 100));
-        await loadNotes();
-        const result = check(state.notes);
-        if (result) return result;
-    }
-    return null;
-}
-
 async function deleteNote() {
-    if (!state.activeNote) return;
-
-    if (!confirm("确认删除这篇笔记？")) return;
-
-    const id = state.activeNote.id;
-    els.deleteNoteButton.disabled = true;
-
-    try {
-        await api("/api/notes/" + id, { method: "DELETE" });
-        showToast("删除已进入 RabbitMQ 队列");
-        clearEditor();
-        const removed = await pollNotes(notes => !notes.some(note => note.id === id));
-        if (!removed) {
-            showToast("删除已入队，稍后刷新确认");
-        }
-    } catch (error) {
-        showToast(error.message);
-    } finally {
-        els.deleteNoteButton.disabled = !state.activeNote;
+  if (!state.activeNote || state.busy || state.pendingOperation || !state.user) return;
+  if (!confirm("确定删除这篇笔记吗？删除后无法恢复。")) return;
+  const id = state.activeNote.id;
+  setBusy(true);
+  try {
+    await api(`/api/notes/${id}`, { method: "DELETE" });
+    state.pendingOperation = { type: "delete", id };
+    setSaveStatus("正在删除…");
+    const deleted = await pollNotes((notes) => !notes.some((note) => note.id === id));
+    if (deleted) {
+      state.pendingOperation = null;
+      clearEditor({ force: true });
+      showToast("笔记已删除");
+    } else {
+      setSaveStatus("删除已入队，待确认", "dirty");
+      showToast("删除请求已提交，稍后可刷新确认");
     }
+  } catch (error) { setSaveStatus("删除失败", "error"); showToast(error.message); }
+  finally { setBusy(false); }
 }
-
-function addMessage(role, content) {
-    const wrapper = document.createElement("div");
-    wrapper.className = "message " + role;
-
-    const roleEl = document.createElement("div");
-    roleEl.className = "message-role";
-    roleEl.textContent = role === "user" ? "YOU" : "AI";
-
-    const body = document.createElement("div");
-    body.className = "message-body";
-    body.textContent = content;
-
-    wrapper.append(roleEl, body);
-    els.chatMessages.appendChild(wrapper);
-    els.chatMessages.scrollTop = els.chatMessages.scrollHeight;
-
-    return body;
+function addMessage(role, text) {
+  const message = document.createElement("div");
+  message.className = `message ${role}`;
+  const label = document.createElement("div");
+  label.className = "message-role";
+  label.textContent = role === "user" ? "你" : "Jotang AI";
+  const body = document.createElement("div");
+  body.className = "message-body";
+  body.textContent = text;
+  message.append(label, body);
+  els.chatMessages.append(message);
+  els.chatMessages.scrollTop = els.chatMessages.scrollHeight;
+  return body;
 }
-
 async function sendChat(event) {
-    event.preventDefault();
-
-    const message = els.chatInput.value.trim();
-    if (!message) return;
-
-    addMessage("user", message);
-    els.chatInput.value = "";
-    els.sendChatButton.disabled = true;
-
-    const loading = addMessage("assistant", "正在思考...");
-
-    try {
-        const result = await api("/chat", {
-            method: "POST",
-            body: JSON.stringify({ message })
-        });
-
-        loading.textContent = result.reply || "模型没有返回文本";
-    } catch (error) {
-        loading.textContent = "请求失败：" + error.message;
-    } finally {
-        els.sendChatButton.disabled = false;
-        els.chatInput.focus();
-    }
+  event.preventDefault();
+  const message = els.chatInput.value.trim();
+  if (!message || els.sendChatButton.disabled) return;
+  addMessage("user", message);
+  els.chatInput.value = "";
+  els.sendChatButton.disabled = true;
+  const reply = addMessage("assistant", "正在思考…");
+  try {
+    const result = await api("/chat", { method: "POST", body: JSON.stringify({ message }) });
+    reply.textContent = result?.reply || "没有收到回复";
+  } catch (error) { reply.textContent = `请求失败：${error.message}`; }
+  finally { els.sendChatButton.disabled = false; els.chatInput.focus(); }
 }
-
 async function newChat() {
-    try {
-        await api("/chat", { method: "DELETE" });
-        els.chatMessages.innerHTML =
-            '<div class="message assistant">' +
-            '<div class="message-role">AI</div>' +
-            '<div class="message-body">新会话已开始。可以继续聊天，或让我读取某篇笔记。</div>' +
-            '</div>';
-        showToast("已新建 AI 会话");
-    } catch (error) {
-        showToast(error.message);
-    }
-}
-
-function updateCharCount() {
-    els.charCount.textContent = els.noteContent.value.length + " 字符";
+  if (els.sendChatButton.disabled) { showToast("请等待当前回复完成"); return; }
+  try {
+    await api("/chat", { method: "DELETE" });
+    els.chatMessages.replaceChildren();
+    addMessage("assistant", "新会话已开始。可以继续提问，或让我读取某篇笔记。");
+    showToast("已开始新会话");
+  } catch (error) { showToast(error.message); }
 }
 
 els.loginTab.addEventListener("click", () => setAuthMode("login"));
 els.registerTab.addEventListener("click", () => setAuthMode("register"));
 els.authForm.addEventListener("submit", submitAuth);
 els.logoutButton.addEventListener("click", logout);
-els.refreshNotesButton.addEventListener("click", loadNotes);
-els.newNoteButton.addEventListener("click", clearEditor);
+els.menuButton.addEventListener("click", () => setSidebar(!els.notesPanel.classList.contains("open")));
+els.sidebarBackdrop.addEventListener("click", () => setSidebar(false));
+els.searchButton.addEventListener("click", focusSearch);
+els.newNoteButton.addEventListener("click", () => { if (clearEditor()) els.noteTitle.focus(); });
+els.allNotesNav.addEventListener("click", () => setFilter("all"));
+els.recentNotesNav.addEventListener("click", () => setFilter("recent"));
+els.refreshNotesButton.addEventListener("click", () => loadNotes());
 els.noteSearch.addEventListener("input", renderNotes);
+els.notesList.addEventListener("click", (event) => {
+  const target = event.target.closest("[data-note-id]");
+  if (target) openNote(Number(target.dataset.noteId));
+});
+els.noteTitle.addEventListener("input", () => { markEdited(); if (!state.activeNote) els.noteMeta.textContent = els.noteTitle.value.trim() || "新笔记"; });
+els.noteContent.addEventListener("input", markEdited);
 els.saveNoteButton.addEventListener("click", saveNote);
 els.deleteNoteButton.addEventListener("click", deleteNote);
-els.noteContent.addEventListener("input", updateCharCount);
+els.aiButton.addEventListener("click", () => setChat(!els.chatPanel.classList.contains("open")));
+els.closeChatButton.addEventListener("click", () => setChat(false));
+els.chatBackdrop.addEventListener("click", () => setChat(false));
 els.chatForm.addEventListener("submit", sendChat);
 els.newChatButton.addEventListener("click", newChat);
-
-els.notesList.addEventListener("click", (event) => {
-    const item = event.target.closest("[data-note-id]");
-    if (item) {
-        openNote(Number(item.dataset.noteId));
-    }
-});
-
 els.chatInput.addEventListener("keydown", (event) => {
-    if (event.key === "Enter" && !event.shiftKey) {
-        event.preventDefault();
-        els.chatForm.requestSubmit();
-    }
+  if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
+    event.preventDefault(); els.chatForm.requestSubmit();
+  }
+});
+document.addEventListener("keydown", (event) => {
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
+    event.preventDefault(); if (state.user) saveNote();
+  }
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+    event.preventDefault(); if (state.user) focusSearch();
+  }
+  if (event.key === "Escape") { setSidebar(false); if (els.chatPanel.classList.contains("open")) setChat(false); }
+});
+window.addEventListener("beforeunload", (event) => {
+  if (state.dirty || state.busy || state.pendingOperation) { event.preventDefault(); event.returnValue = ""; }
 });
 
 setAuthMode("login");
-clearEditor();
+clearEditor({ force: true });
 restoreSession();
