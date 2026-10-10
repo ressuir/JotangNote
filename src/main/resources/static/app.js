@@ -77,7 +77,7 @@ function setAuthMode(mode) {
   els.loginTab.classList.toggle("active", login);
   els.registerTab.classList.toggle("active", !login);
   els.authSubmit.textContent = login ? "登录" : "注册";
-  els.authHint.textContent = login ? "登录后查看和编辑你的笔记。" : "用户名 2–32 字符；密码 8–72 字节。";
+  els.authHint.textContent = login ? "登录后查看和编辑你的笔记。" : "用户名 2–32 个字符，不含空格；密码至少 8 位，可使用字母、数字和符号。";
   els.passwordInput.autocomplete = login ? "current-password" : "new-password";
 }
 function setUser(user) {
@@ -101,10 +101,17 @@ async function submitAuth(event) {
   const password = els.passwordInput.value;
   if (!username || !password) { showToast("请输入用户名和密码"); return; }
   if (state.authMode === "register") {
-    if (username.length < 2 || username.length > 32 || /\s/.test(username)
-      || new TextEncoder().encode(password).length < 8
-      || new TextEncoder().encode(password).length > 72) {
-      showToast("用户名需为 2–32 个非空白字符，密码为 8–72 字节"); return;
+    if (username.length < 2 || username.length > 32 || /\s/.test(username)) {
+      showToast("用户名需要 2–32 个字符，不能包含空格");
+      return;
+    }
+    if (Array.from(password).length < 8) {
+      showToast("密码至少需要 8 位，可使用字母、数字和符号");
+      return;
+    }
+    if (new TextEncoder().encode(password).length > 72) {
+      showToast("密码太长，请缩短一些再试");
+      return;
     }
   }
   els.authSubmit.disabled = true;
