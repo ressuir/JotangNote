@@ -21,7 +21,7 @@ const els = {
   userBadge: $("userBadge"), logoutButton: $("logoutButton"), menuButton: $("menuButton"),
   notesPanel: $("notesPanel"), sidebarBackdrop: $("sidebarBackdrop"),
   newNoteButton: $("newNoteButton"), allNotesNav: $("allNotesNav"), recentNotesNav: $("recentNotesNav"),
-  notesCount: $("notesCount"), notesList: $("notesList"), noteSearch: $("noteSearch"),
+  notesList: $("notesList"), noteSearch: $("noteSearch"), sidebarSearch: $("sidebarSearch"), closeSearchButton: $("closeSearchButton"),
   searchButton: $("searchButton"), refreshNotesButton: $("refreshNotesButton"),
   noteMeta: $("noteMeta"), noteDate: $("noteDate"), noteTitle: $("noteTitle"),
   noteContent: $("noteContent"), saveNoteButton: $("saveNoteButton"),
@@ -29,7 +29,7 @@ const els = {
   aiButton: $("aiButton"), chatPanel: $("chatPanel"), chatBackdrop: $("chatBackdrop"),
   closeChatButton: $("closeChatButton"), chatMessages: $("chatMessages"),
   chatForm: $("chatForm"), chatInput: $("chatInput"), sendChatButton: $("sendChatButton"),
-  newChatButton: $("newChatButton")
+  newChatButton: $("newChatButton"), accountMenuButton: $("accountMenuButton"), accountMenu: $("accountMenu"), noteMoreButton: $("noteMoreButton"), noteMoreMenu: $("noteMoreMenu")
 };
 
 async function api(url, options = {}) {
@@ -143,6 +143,7 @@ function setChat(open) {
   else els.aiButton.focus();
 }
 function focusSearch() {
+  els.sidebarSearch.hidden = false;
   setSidebar(true);
   els.noteSearch.focus();
   els.noteSearch.select();
@@ -235,17 +236,15 @@ function renderNotes() {
   const filtered = sortedNotes().filter((note) => !keyword ||
     String(note.title || "").toLocaleLowerCase().includes(keyword)
     || String(note.content || "").toLocaleLowerCase().includes(keyword));
-  els.notesCount.textContent = String(state.notes.length);
   if (!filtered.length) {
     els.notesList.innerHTML = `<div class="empty-state">${keyword ? "没有找到匹配的笔记" : "还没有笔记，点击「新建笔记」开始"}</div>`;
     return;
   }
   els.notesList.innerHTML = filtered.map((note) => {
     const active = state.activeNote?.id === note.id;
-    return `<button type="button" class="note-item${active ? " active" : ""}" data-note-id="${Number(note.id)}" aria-current="${active ? "true" : "false"}">`
+    return `<button type="button" class="note-item${active ? " active" : ""}" data-note-id="${Number(note.id)}" aria-current="${active ? "true" : "false"}" title="${escapeHtml(note.title || "无标题笔记")}">`
+      + `<svg class="note-item-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3.5h8l3 3V20H7a2 2 0 0 1-2-2V5.5a2 2 0 0 1 2-2z"/><path d="M15 3.5v4h3"/></svg>`
       + `<span class="note-item-title">${escapeHtml(note.title || "无标题笔记")}</span>`
-      + `<span class="note-item-preview">${escapeHtml((note.content || "").replace(/\s+/g, " ") || "暂无正文")}</span>`
-      + `<span class="note-item-meta">${escapeHtml(formatDate(note.updatedAt || note.createdAt) || `#${note.id}`)}</span>`
       + `</button>`;
   }).join("");
 }
@@ -441,10 +440,33 @@ async function newChat() {
 els.loginTab.addEventListener("click", () => setAuthMode("login"));
 els.registerTab.addEventListener("click", () => setAuthMode("register"));
 els.authForm.addEventListener("submit", submitAuth);
-els.logoutButton.addEventListener("click", logout);
+function closeMenus() {
+  els.accountMenu.hidden = true;
+  els.noteMoreMenu.hidden = true;
+  els.accountMenuButton.setAttribute("aria-expanded", "false");
+  els.noteMoreButton.setAttribute("aria-expanded", "false");
+}
+function toggleMenu(button, menu) {
+  const open = menu.hidden;
+  closeMenus();
+  menu.hidden = !open;
+  button.setAttribute("aria-expanded", String(open));
+}
+els.accountMenuButton.addEventListener("click", () => toggleMenu(els.accountMenuButton, els.accountMenu));
+els.noteMoreButton.addEventListener("click", () => toggleMenu(els.noteMoreButton, els.noteMoreMenu));
+document.addEventListener("pointerdown", (event) => {
+  if (!event.target.closest(".popover-anchor")) closeMenus();
+});
+els.logoutButton.addEventListener("click", () => { closeMenus(); logout(); });
 els.menuButton.addEventListener("click", () => setSidebar(!els.notesPanel.classList.contains("open")));
 els.sidebarBackdrop.addEventListener("click", () => setSidebar(false));
 els.searchButton.addEventListener("click", focusSearch);
+els.closeSearchButton.addEventListener("click", () => {
+  els.noteSearch.value = "";
+  els.sidebarSearch.hidden = true;
+  renderNotes();
+  els.searchButton.focus();
+});
 els.newNoteButton.addEventListener("click", () => { if (clearEditor()) els.noteTitle.focus(); });
 els.allNotesNav.addEventListener("click", () => setFilter("all"));
 els.recentNotesNav.addEventListener("click", () => setFilter("recent"));
@@ -457,7 +479,7 @@ els.notesList.addEventListener("click", (event) => {
 els.noteTitle.addEventListener("input", () => { markEdited(); if (!state.activeNote) els.noteMeta.textContent = els.noteTitle.value.trim() || "新笔记"; });
 els.noteContent.addEventListener("input", markEdited);
 els.saveNoteButton.addEventListener("click", saveNote);
-els.deleteNoteButton.addEventListener("click", deleteNote);
+els.deleteNoteButton.addEventListener("click", () => { closeMenus(); deleteNote(); });
 els.aiButton.addEventListener("click", () => setChat(!els.chatPanel.classList.contains("open")));
 els.closeChatButton.addEventListener("click", () => setChat(false));
 els.chatBackdrop.addEventListener("click", () => setChat(false));
@@ -475,7 +497,7 @@ document.addEventListener("keydown", (event) => {
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
     event.preventDefault(); if (state.user) focusSearch();
   }
-  if (event.key === "Escape") { setSidebar(false); if (els.chatPanel.classList.contains("open")) setChat(false); }
+  if (event.key === "Escape") { closeMenus(); setSidebar(false); if (els.chatPanel.classList.contains("open")) setChat(false); }
 });
 window.addEventListener("beforeunload", (event) => {
   if (state.dirty || state.busy || state.pendingOperation) { event.preventDefault(); event.returnValue = ""; }
