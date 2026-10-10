@@ -71,6 +71,10 @@ jobs:
             sudo apt-get update -qq
             sudo apt-get install -y default-mysql-client redis-tools
           fi
+          if ! command -v redis-cli >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y redis-tools
+          fi
           mysql -h 127.0.0.1 -u root -ptestpass < sql/schema.sql
       - name: Run Maven tests
         run: bash ./mvnw -B test
@@ -88,7 +92,9 @@ jobs:
             exit 1
           fi
       - name: Real HTTP smoke test with MySQL, Redis and RabbitMQ
-        run: bash scripts/smoke-test.sh | tee /tmp/jotang-smoke.log
+        run: |
+          set -o pipefail
+          bash scripts/smoke-test.sh | tee /tmp/jotang-smoke.log
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
