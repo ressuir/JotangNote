@@ -181,3 +181,63 @@ svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width:
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+
+
+/* AI is a part of the writing workspace, not a modal overlay. */
+:root { --assistant-width: clamp(326px, 27vw, 390px); }
+.chat-backdrop { display: none !important; }
+.app-shell { transition: padding-right .18s ease; }
+body.ai-open .app-shell { padding-right: var(--assistant-width); }
+.chat-panel {
+  top: 92px; bottom: 0; right: 0;
+  width: var(--assistant-width);
+  background: #fff;
+  border-left: 1px solid var(--line);
+  box-shadow: none;
+  z-index: 12;
+  transition: transform .18s ease, visibility .18s;
+}
+.chat-header {
+  height: 78px; padding: 0 23px;
+  background: #fff;
+  border-bottom: 1px solid var(--line);
+}
+.chat-eyebrow { display: none; }
+.chat-header h2 { font-size: 15px; font-weight: 560; margin: 0; letter-spacing: -.01em; }
+.chat-header-actions { gap: 3px; }
+.chat-header-actions .text-button { color: #868985; font-size: 12px; padding: 8px 9px; }
+.chat-messages { padding: 27px 23px 15px; }
+.message { margin-bottom: 25px; }
+.message-role { color: #979a96; font-size: 11px; margin-bottom: 11px; }
+.message-body { padding: 0; max-width: 100%; font-size: 13px; line-height: 1.85; background: transparent; color: #484c48; border-radius: 0; }
+.message.user { align-items: flex-start; }
+.message.user .message-body { padding: 12px 13px; background: #f6f6f5; color: #454845; border-radius: 8px; }
+.chat-form { border-top: 1px solid var(--line); padding: 15px 19px 19px; gap: 8px; align-items: flex-end; }
+.chat-form textarea {
+  min-height: 64px; max-height: 160px; resize: vertical;
+  border: 1px solid #e8e9e7; border-radius: 7px;
+  padding: 11px 12px; outline: none;
+  color: var(--text); background: #fff; font-size: 13px; line-height: 1.65;
+}
+.chat-form textarea:focus { border-color: #bec5bf; }
+.chat-form .button-primary { background: #f4f4f2; color: #3f423e; border: 1px solid #e9eae7; font-size: 12px; padding: 10px 12px; }
+.chat-form .button-primary:hover:not(:disabled) { background: #ebedeb; }
+
+/* The authentication screen uses the same quiet, document-first visual system. */
+.auth-overlay { background: #fff; }
+.auth-card { width: min(400px, 100%); border: 0; border-radius: 0; box-shadow: none; padding: 28px 20px; }
+.auth-brand { justify-content: flex-start; }
+.auth-title { text-align: left; font-size: 23px; margin: 35px 0 26px; }
+.auth-tabs { margin-bottom: 25px; }
+.auth-hint { text-align: left; }
+
+@media (max-width: 1050px) {
+  :root { --assistant-width: 330px; }
+  body.ai-open .app-shell { padding-right: 0; }
+  .chat-panel { box-shadow: -8px 0 28px #00000008; }
+}
+@media (max-width: 650px) {
+  :root { --assistant-width: min(100vw, 390px); }
+  .chat-panel { top: 68px; }
+  .chat-header { height: 68px; }
+}
