@@ -92,6 +92,10 @@ svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width:
 .note-content::placeholder { color: #b1b4b0; }
 .editor-footer { height: 38px; flex: none; display: flex; align-items: center; justify-content: flex-end; padding: 0 30px; color: #a4a6a3; font-size: 11px; }
 
+.button { border: 1px solid transparent; border-radius: 7px; padding: 10px 14px; font-weight: 520; transition: background .12s; }
+.button-primary { background: #252725; color: white; }
+.button-primary:not(:disabled):hover { background: #454745; }
+
 /* Small account and contextual menus only; no persistent toolbar clutter. */
 .popover-anchor { position: relative; }
 .popover-menu { position: absolute; top: calc(100% + 7px); right: 0; z-index: 40; width: 184px; padding: 6px; background: #fff; border: 1px solid #e6e7e5; border-radius: 9px; box-shadow: 0 12px 30px rgba(0,0,0,.08); }
