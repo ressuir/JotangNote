@@ -136,7 +136,8 @@ function setSidebar(open) {
 function setChat(open) {
   const isOpen = Boolean(open);
   els.chatPanel.classList.toggle("open", isOpen);
-  els.chatBackdrop.hidden = !isOpen;
+  document.body.classList.toggle("ai-open", isOpen);
+  els.chatBackdrop.hidden = true;
   els.chatPanel.setAttribute("aria-hidden", String(!isOpen));
   els.aiButton.setAttribute("aria-expanded", String(isOpen));
   if (isOpen) els.chatInput.focus();
