@@ -48,9 +48,6 @@
       </div>
     </div>
     <div class="top-actions">
-      <button id="searchButton" type="button" class="icon-button" aria-label="搜索笔记" title="搜索笔记 (Ctrl/⌘ K)">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 5 5"/></svg>
-      </button>
       <button id="aiButton" type="button" class="icon-button" aria-label="打开 AI 助手" aria-controls="chatPanel" aria-expanded="false" title="AI 助手">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11.5a7.8 7.8 0 0 1-8 7.5 8.8 8.8 0 0 1-3.5-.7L4 20l1.4-4A7.3 7.3 0 0 1 4 11.5 7.8 7.8 0 0 1 12 4a7.8 7.8 0 0 1 8 7.5z"/></svg>
       </button>
@@ -83,46 +80,53 @@
           <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>
           <span>全部笔记</span>
         </button>
-        <button id="recentNotesNav" class="nav-item" type="button">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h11"/></svg>
-          <span>最近编辑</span>
-        </button>
       </nav>
       <div class="sidebar-section-title">
         <span>笔记列表</span>
-        <button id="refreshNotesButton" type="button" class="icon-button icon-button-small" aria-label="刷新笔记列表" title="刷新笔记列表">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M5.7 9A7 7 0 0 1 18 7l2 5M4 12l2 5a7 7 0 0 0 12.3-2"/></svg>
-        </button>
+        <div class="sidebar-tools">
+          <label class="visually-hidden" for="sortOrder">笔记排序</label>
+          <select id="sortOrder" class="sort-select" aria-label="笔记排序" title="笔记排序">
+            <option value="recent">最近修改</option>
+            <option value="created">最新创建</option>
+          </select>
+          <button id="searchButton" type="button" class="icon-button icon-button-small" aria-label="搜索笔记" title="搜索笔记 (Ctrl/⌘ K)">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 5 5"/></svg>
+          </button>
+        </div>
       </div>
       <div id="sidebarSearch" class="sidebar-search" hidden>
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 5 5"/></svg>
         <input id="noteSearch" type="search" autocomplete="off" placeholder="搜索标题或正文" aria-label="搜索标题或正文">
         <button id="closeSearchButton" class="search-close" type="button" aria-label="关闭搜索">×</button>
       </div>
+      <div id="notesLoadError" class="notes-load-error" hidden>
+        <span>笔记列表加载失败</span>
+        <button id="retryNotesButton" type="button">重试</button>
+      </div>
       <div id="notesList" class="notes-list" aria-label="笔记列表"><div class="empty-state">正在加载笔记…</div></div>
     </aside>
 
     <section class="editor-panel" aria-label="笔记编辑区">
       <div class="editor-toolbar">
-        <div class="breadcrumb"><span>笔记</span><span class="breadcrumb-slash">/</span><span id="noteMeta">新笔记</span></div>
-        <div class="editor-actions">
-          <span id="saveStatus" class="save-status" role="status" aria-live="polite">未保存</span>
-          <button id="saveNoteButton" class="save-button" type="button">创建笔记</button>
-          <div class="popover-anchor">
-            <button id="noteMoreButton" class="icon-button note-more-button" type="button" aria-label="更多笔记操作" aria-expanded="false" aria-controls="noteMoreMenu" title="更多操作">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1" fill="currentColor" stroke="none"/></svg>
-            </button>
-            <div id="noteMoreMenu" class="popover-menu note-more-menu" hidden>
-              <button id="deleteNoteButton" class="menu-action danger-button" type="button" disabled>删除这篇笔记</button>
-            </div>
-          </div>
+        <div class="editor-actions" aria-label="笔记操作">
+          <button id="saveNoteButton" class="icon-button save-button" type="button" aria-label="保存笔记" title="保存笔记 (Ctrl+S)">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3.5h12l3.5 3.5V20.5H3.5V3.5z"/><path d="M7.5 3.5v6h9v-6M7 20.5v-8.5h10v8.5"/></svg>
+          </button>
+          <button id="deleteNoteButton" class="icon-button delete-note-button" type="button" aria-label="删除笔记" title="删除笔记" disabled hidden>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4.5h6V7M7 7l1 13h8l1-13M10 10.5v6M14 10.5v6"/></svg>
+          </button>
         </div>
       </div>
       <div class="editor-scroll">
         <div class="editor-body">
           <label class="visually-hidden" for="noteTitle">笔记标题</label>
           <input id="noteTitle" class="title-input" maxlength="200" placeholder="无标题笔记" autocomplete="off">
-          <div class="editor-date" id="noteDate">开始记录你的想法</div>
+          <div class="editor-meta-line">
+            <span class="editor-date" id="noteDate">开始记录你的想法</span>
+            <span class="meta-separator" aria-hidden="true">·</span>
+            <span id="saveStatus" class="save-status" role="status" aria-live="polite">未保存</span>
+            <button id="retryStatusButton" class="status-retry" type="button" hidden>重新检查</button>
+          </div>
           <div class="editor-divider"></div>
           <label class="visually-hidden" for="noteContent">笔记正文</label>
           <textarea id="noteContent" class="note-content" maxlength="100000" spellcheck="false" placeholder="开始写点什么…"></textarea>
