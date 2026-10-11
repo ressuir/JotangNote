@@ -68,8 +68,9 @@ bash scripts/smoke-test.sh
 - [笔记创建页面](Notes/screenshots/02-notes.png)
 - [AI 界面（仅界面验证）](Notes/screenshots/03-ai-ui.png)
 - [真实 CI 冒烟与 RabbitMQ 日志](Notes/screenshots/04-verified-ci-log.png)
+- [真实 DeepSeek 聊天和 Tool Use 截图](Notes/screenshots/05-ai-live.png)
 
-**证据范围：** CI 不调用收费的 DeepSeek API。AI 工具分发和权限有单元测试，但真实模型回复、多轮远程调用和模型自主 Tool Use 不能仅凭这些测试认定通过。原始运行日志可以从相应 Actions 页面下载 artifact 查看。
+**DeepSeek 在线实测：** 2026-10-11 的 [GitHub Actions 运行 #38104919236](https://github.com/ressuir/JotangNote/actions/runs/38104919236) 已在真实浏览器中使用 DeepSeek API，通过普通聊天、多轮历史、模型自主调用 `get_note` 读取 MySQL，以及跨用户权限隔离。完整结果见 [AI 在线测试报告](Notes/AI-在线测试报告.md)。在线测试仅在手动触发 `workflow_dispatch` 或显式标记 `[ai-live]` 的提交上执行，**普通提交不消耗 DeepSeek API 额度**。原始运行日志和截图可以从对应 Actions 运行记录查看。
 
 ## 三篇招新文档
 
