@@ -1,0 +1,78 @@
+name: Validate Chinese extraction path and finalize Release
+on:
+  push:
+    branches: [course/delivery-20261116]
+    paths: [.github/workflows/course-repackage.yml]
+permissions:
+  contents: write
+  actions: read
+jobs:
+  finalize:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Restore genuine reviewed recording and verify matching implementation
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p previous course-output
+          gh release download course-20261116 -p JotangNote-course-delivery.zip -D previous
+          python3 - <<'PY'
+          from pathlib import Path
+          import zipfile,json
+          with zipfile.ZipFile('previous/JotangNote-course-delivery.zip') as z:
+              assert z.testzip() is None
+              prefix='焦糖笔记/项目源码/完整可运行项目/'
+              count=0
+              for p in Path('src').rglob('*'):
+                  if p.is_file():
+                      assert z.read(prefix+p.as_posix())==p.read_bytes(),str(p)
+                      count+=1
+              for name in ['pom.xml','Dockerfile','sql/schema.sql']:
+                  assert z.read(prefix+name)==Path(name).read_bytes(),name
+              for name in ['焦糖笔记演示.mp4','中文字幕.srt']:
+                  Path('course-output',name).write_bytes(z.read('焦糖笔记/演示视频/'+name))
+              m=json.loads(z.read('焦糖笔记/验收记录.json'))
+              v=m['video'];v['recording_source_commit']=m['source_commit'];v['matching_implementation_files']=count+3
+              Path('course-output/video-validation.json').write_text(json.dumps(v,ensure_ascii=False,indent=2))
+              print('PASS: genuine reviewed recording retained; identical implementation files:',count+3)
+          PY
+      - name: Start and test from the exact Chinese directory structure
+        run: |
+          mkdir -p /tmp/焦糖笔记/项目源码/完整可运行项目
+          git archive HEAD | tar -x -C /tmp/焦糖笔记/项目源码/完整可运行项目
+          cd /tmp/焦糖笔记/项目源码/完整可运行项目
+          docker compose config --quiet
+          docker compose up --build -d > "$GITHUB_WORKSPACE/course-output/chinese-compose-build.log" 2>&1
+          for i in {1..150}; do
+            if curl -fsS http://localhost:8080/hello >/dev/null; then break; fi
+            sleep 2
+          done
+          curl -fsS http://localhost:8080/hello
+          python3 course/compose-smoke.py | tee "$GITHUB_WORKSPACE/course-output/chinese-path-test.log"
+      - name: Repackage corrected source with all reviewed materials
+        run: python3 course/package-delivery.py | tee course-output/package-validation.log
+      - name: Publish final corrected Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp course-output/焦糖笔记课程交付.zip course-output/JotangNote-course-delivery.zip
+          gh api -X PATCH repos/ressuir/JotangNote/git/refs/tags/course-20261116 -f sha="$GITHUB_SHA" -F force=true
+          gh release upload course-20261116 'course-output/JotangNote-course-delivery.zip#焦糖笔记课程交付完整包' --clobber
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: final-chinese-path-delivery
+          path: |
+            course-output/JotangNote-course-delivery.zip
+            course-output/*.log
+          retention-days: 90
+      - name: Print failure details
+        if: failure()
+        run: tail -n 100 course-output/chinese-compose-build.log 2>/dev/null || true
