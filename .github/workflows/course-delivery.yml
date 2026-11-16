@@ -100,7 +100,7 @@ jobs:
           PYCODE
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add course/evidence Notes/screenshots
+          git add course/evidence Notes/screenshots Notes/AI-在线测试报告.md
           git diff --cached --quiet || git commit -m 'docs: record current course verification [skip ci]'
           git pull --rebase
           git push
