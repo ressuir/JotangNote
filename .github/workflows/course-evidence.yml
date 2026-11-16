@@ -53,3 +53,5 @@ jobs:
           git add course/evidence Notes/screenshots
           git commit -m 'docs: retain authentic course verification evidence [skip ci]'
           git push
+
+# Evidence originates from the verified cloud run above.
