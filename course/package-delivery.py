@@ -22,6 +22,7 @@ archive=O/'source.tar';subprocess.run(['git','archive','--format=tar','-o',str(a
 source=root/'项目源码'/'完整可运行项目';source.mkdir(exist_ok=True)
 subprocess.run(['tar','-xf',str(archive),'-C',str(source)],check=True)
 shutil.rmtree(source/'course/artifacts',ignore_errors=True)
+shutil.rmtree(source/'course/qa',ignore_errors=True)
 # Keep the complete genuine commit graph separately from the runnable source snapshot.
 subprocess.run(['git','bundle','create',str(source/'Git历史.bundle'),'--all'],check=True)
 log=subprocess.check_output(['git','log','--all','--date=iso-strict','--format=%h %ad %s'],text=True)

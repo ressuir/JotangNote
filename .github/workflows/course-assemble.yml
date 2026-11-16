@@ -48,7 +48,7 @@ jobs:
         run: python3 course/compose-smoke.py | tee course-output/compose-test.log
       - name: Record genuine browser operations
         run: |
-          python3 -m http.server 8090 --directory course-output > /tmp/evidence-server.log 2>&1 &
+          python3 course/evidence-server.py > /tmp/evidence-server.log 2>&1 &
           node course/record-demo.cjs | tee course-output/recording.log
       - name: Edit waits, embed Chinese subtitles and validate video
         run: python3 course/finalize-video.py > course-output/ffmpeg-validation.log 2>&1
@@ -82,8 +82,19 @@ jobs:
 
           下载“焦糖笔记课程交付.zip”即可获得全部材料。源码中保留真实 Git 历史及云端测试摘要。在线 AI 需要使用自己的有效 DEEPSEEK_API_KEY。
           TEXT
+          gh api -X PATCH repos/ressuir/JotangNote/git/refs/tags/course-20261116 -f sha="$GITHUB_SHA" -F force=true
           gh release view course-20261116 >/dev/null 2>&1 || gh release create course-20261116 --target "$GITHUB_SHA" --title '焦糖笔记课程交付' --notes-file /tmp/release-notes.md
-          gh release upload course-20261116 course-output/焦糖笔记课程交付.zip course/artifacts/焦糖笔记项目报告.docx course/artifacts/焦糖笔记项目报告.pdf course/artifacts/焦糖笔记项目介绍.pptx course-output/焦糖笔记演示.mp4 course-output/中文字幕.srt --clobber
+          mkdir -p course-output/release
+          cp course-output/焦糖笔记课程交付.zip course-output/release/JotangNote-course-delivery.zip
+          cp course/artifacts/焦糖笔记项目报告.docx course-output/release/JotangNote-report.docx
+          cp course/artifacts/焦糖笔记项目报告.pdf course-output/release/JotangNote-report.pdf
+          cp course/artifacts/焦糖笔记项目介绍.pptx course-output/release/JotangNote-introduction.pptx
+          cp course-output/焦糖笔记演示.mp4 course-output/release/JotangNote-demo.mp4
+          cp course-output/中文字幕.srt course-output/release/JotangNote-subtitles.srt
+          gh release upload course-20261116 'course-output/release/JotangNote-course-delivery.zip#焦糖笔记课程交付完整包' 'course-output/release/JotangNote-report.docx#焦糖笔记项目报告 Word' 'course-output/release/JotangNote-report.pdf#焦糖笔记项目报告 PDF' 'course-output/release/JotangNote-introduction.pptx#焦糖笔记项目介绍 PPT' 'course-output/release/JotangNote-demo.mp4#焦糖笔记演示视频' 'course-output/release/JotangNote-subtitles.srt#中文字幕' --clobber
+          for name in default.zip default.docx default.pdf default.pptx default.mp4 default.srt; do
+            gh release delete-asset course-20261116 "$name" --yes
+          done
       - name: Show logs on failure
         if: failure()
         run: |
