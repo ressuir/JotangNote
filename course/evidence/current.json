@@ -1,6 +1,6 @@
 {
-  "run_id": 43860431617,
-  "commit": "ce86f27d096f6dea59ecb2263ac44195b59718d6",
+  "run_id": 43861139930,
+  "commit": "60cc6a3b2ee788e0f3064ba5ffb658242808ffb2",
   "tests": {
     "tests": 5,
     "failures": 0,
@@ -8,9 +8,10 @@
     "skipped": 0
   },
   "ai_live": false,
-  "reports": [
-    "TEST-com.example.JotangNote.ai.ChatServiceTest.xml",
-    "TEST-com.example.JotangNote.service.NoteAccessServiceTest.xml",
-    "TEST-com.example.JotangNote.JotangNoteApplicationTests.xml"
-  ]
+  "ai": {
+    "http": 503,
+    "available": false,
+    "message": "AI 服务鉴权失败，请检查服务器 DEEPSEEK_API_KEY 配置",
+    "checked_at": "2026-11-16T11:51:38.915Z"
+  }
 }
