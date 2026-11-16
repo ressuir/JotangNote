@@ -118,3 +118,5 @@ jobs:
             Notes/screenshots/
             Notes/AI-在线测试报告.md
           retention-days: 90
+
+# Reverify online AI after the repository credential was updated.
