@@ -68,6 +68,7 @@ async function main() {
         await page.screenshot({ path: path.join(OUT, "02-notes.png"), fullPage: true });
         console.log("PASS browser: created and displayed a note through real HTTP/MQ/MySQL");
 
+        await page.locator("#aiButton").click();
         await page.locator("#newChatButton").click();
         await requireVisible(page.locator("#chatInput"), "AI chat field was not visible");
         await page.screenshot({ path: path.join(OUT, "03-ai-ui.png"), fullPage: true });

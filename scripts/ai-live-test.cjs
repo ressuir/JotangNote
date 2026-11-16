@@ -103,6 +103,7 @@ async function main() {
         const noteId = await waitForNote(page);
         console.log("PASS live setup: note created by browser and RabbitMQ (id=" + noteId + ")");
 
+        await page.locator("#aiButton").click();
         await askAI(page,
             "请用一句简短的中文解释 HTTP 202 状态码。",
             "plain chat");

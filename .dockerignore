@@ -1,0 +1,9 @@
+.git
+.idea
+target
+node_modules
+.env
+*-cookie.txt
+*.cookie
+*.log
+course-output

@@ -14,10 +14,10 @@ import java.util.Map;
 public class ModelClient {
 
     private static final String BASE_URL =
-            "https://api.deepseek.com";
+            System.getenv().getOrDefault("DEEPSEEK_BASE_URL", "https://api.deepseek.com");
 
     private static final String MODEL =
-            "deepseek-flash";
+            System.getenv().getOrDefault("DEEPSEEK_MODEL", "deepseek-flash");
 
     private final JsonMapper jsonMapper;
 
