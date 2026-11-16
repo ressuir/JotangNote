@@ -42,6 +42,7 @@ jobs:
           for name in ['jotang-smoke.log','jotang-ai.log']:
               p=next(base.rglob(name)); shutil.copy2(p,out/name)
           server=next(base.rglob('jotang-server.log')).read_text()
+          print(chr(10).join(x for x in server.splitlines() if 'HttpClientErrorException' in x or 'Caused by:' in x or 'Authentication' in x))
           (out/'mq.log').write_text('\n'.join(x for x in server.splitlines() if 'MQ received:' in x or 'MQ created note id=' in x or 'AI requested tool:' in x))
           ai=(out/'jotang-ai.log').read_text()
           data={'run_id':43860431617,'commit':'ce86f27d096f6dea59ecb2263ac44195b59718d6','tests':totals,'ai_live':'PASS: all live DeepSeek' in ai,'reports':[p.name for p in reports]}
@@ -51,7 +52,7 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add course/evidence Notes/screenshots
-          git commit -m 'docs: retain authentic course verification evidence [skip ci]'
+          git diff --cached --quiet || git commit -m 'docs: retain authentic course verification evidence [skip ci]'
           git push
 
 # Evidence originates from the verified cloud run above.
