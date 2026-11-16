@@ -1,8 +1,8 @@
 # DeepSeek 在线端到端测试
 
-执行时间（UTC）：`2026-11-16T12:03:36.911Z`
+执行时间（UTC）：`2026-11-16T12:36:12.711Z`
 
-GitHub Actions：[查看运行记录](https://github.com/ressuir/JotangNote/actions/runs/43862842481)
+GitHub Actions：[查看运行记录](https://github.com/ressuir/JotangNote/actions/runs/43867782821)
 
 模型：`deepseek-flash`，非思考模式；真实调用后端 `POST /chat`。
 
