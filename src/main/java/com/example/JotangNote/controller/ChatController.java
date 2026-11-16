@@ -3,6 +3,7 @@ package com.example.JotangNote.controller;
 import com.example.JotangNote.ai.ChatService;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -93,18 +94,23 @@ public class ChatController {
                     )
             );
 
+        } catch (HttpClientErrorException e) {
+            String message = switch (e.getStatusCode().value()) {
+                case 401, 403 -> "AI 服务鉴权失败，请检查服务器 DEEPSEEK_API_KEY 配置";
+                case 402 -> "AI 服务余额不足，请检查服务账号";
+                case 429 -> "AI 服务请求过于频繁，请稍后重试";
+                default -> "AI 服务暂不可用，请检查服务器模型配置";
+            };
+            return ResponseEntity.status(503).body(Map.of("message", message));
+        } catch (IllegalStateException e) {
+            if ("DEEPSEEK_API_KEY is not configured".equals(e.getMessage())) {
+                return ResponseEntity.status(503).body(Map.of(
+                        "message", "AI 服务尚未配置，请设置服务器 DEEPSEEK_API_KEY 环境变量"));
+            }
+            return ResponseEntity.status(502).body(Map.of("message", "AI 服务响应异常，请稍后重试"));
         } catch (Exception e) {
-
-            e.printStackTrace();
-
-            return ResponseEntity
-                    .internalServerError()
-                    .body(
-                            Map.of(
-                                    "message",
-                                    "chat failed; check server logs"
-                            )
-                    );
+            // Do not expose upstream responses, credentials or private note bodies.
+            return ResponseEntity.status(502).body(Map.of("message", "AI 服务连接失败，请稍后重试"));
         }
     }
 

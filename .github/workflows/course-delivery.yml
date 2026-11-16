@@ -2,9 +2,13 @@ name: Course delivery
 on:
   push:
     branches: [course/delivery-20261116]
+    paths: ["src/**", "pom.xml", "compose.yaml", "Dockerfile", "scripts/**", ".github/workflows/course-delivery.yml"]
   workflow_dispatch:
 permissions:
   contents: write
+defaults:
+  run:
+    shell: bash
 jobs:
   verify:
     runs-on: ubuntu-24.04
@@ -69,21 +73,47 @@ jobs:
           npm install --no-save --package-lock=false playwright@1.57.0
           npx playwright install --with-deps chromium
           node scripts/browser-evidence.cjs
-      - name: Optional real AI check
+      - name: Check real AI availability and error handling
         env:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
         run: |
-          if [ -n "$DEEPSEEK_API_KEY" ]; then
-            node scripts/ai-live-test.cjs | tee /tmp/jotang-ai.log
-          else
-            echo 'SKIP: No DeepSeek secret configured; online AI not tested in this run.' | tee /tmp/jotang-ai.log
+          node scripts/ai-status-check.cjs | tee /tmp/jotang-ai.log
+          if node -e "if(!require('/tmp/jotang-ai-status.json').available)process.exit(1)"; then
+            node scripts/ai-live-test.cjs 2>&1 | tee -a /tmp/jotang-ai.log
           fi
+      - name: Retain current test evidence
+        if: success()
+        run: |
+          mkdir -p course/evidence
+          cp /tmp/jotang-smoke.log /tmp/jotang-ai.log /tmp/jotang-ai-status.json course/evidence/
+          python3 - <<'PYCODE'
+          import pathlib,json,xml.etree.ElementTree as E,os
+          totals={k:0 for k in ['tests','failures','errors','skipped']}
+          for p in pathlib.Path('target/surefire-reports').glob('TEST-*.xml'):
+              r=E.parse(p).getroot()
+              for k in totals: totals[k]+=int(r.get(k,'0'))
+          ai=json.loads(pathlib.Path('/tmp/jotang-ai-status.json').read_text())
+          data={'run_id':int(os.environ['GITHUB_RUN_ID']),'commit':os.environ['GITHUB_SHA'],'tests':totals,'ai_live':ai['available'],'ai':ai}
+          pathlib.Path('course/evidence/current.json').write_text(json.dumps(data,ensure_ascii=False,indent=2))
+          log=pathlib.Path('/tmp/jotang-server.log').read_text()
+          pathlib.Path('course/evidence/mq.log').write_text('\n'.join(x for x in log.splitlines() if 'MQ received:' in x or 'MQ created note id=' in x or 'AI requested tool:' in x))
+          PYCODE
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add course/evidence Notes/screenshots
+          git diff --cached --quiet || git commit -m 'docs: record current course verification [skip ci]'
+          git pull --rebase
+          git push
+      - name: Diagnose server failure
+        if: failure()
+        run: tail -n 100 /tmp/jotang-server.log
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: course-verification
           path: |
             /tmp/jotang-*.log
+            /tmp/jotang-ai-status.json
             target/surefire-reports/
             Notes/screenshots/
             Notes/AI-在线测试报告.md
