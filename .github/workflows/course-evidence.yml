@@ -1,0 +1,55 @@
+name: Publish course evidence
+on:
+  push:
+    branches: [course/delivery-20261116]
+    paths: [.github/workflows/course-evidence.yml]
+permissions:
+  contents: write
+  actions: read
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: course/delivery-20261116
+      - name: Wait for verified run and download its evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for i in {1..80}; do
+            state=$(gh run view 43860431617 --json status,conclusion --jq '.status+":"+(.conclusion//"")')
+            if [ "$state" = completed:success ]; then break; fi
+            if [[ "$state" == completed:* ]]; then echo "Verification failed: $state"; exit 1; fi
+            sleep 10
+          done
+          [ "$state" = completed:success ]
+          gh run download 43860431617 -n course-verification -D /tmp/evidence
+      - name: Publish authentic screenshots and test summaries
+        run: |
+          python3 - <<'PY'
+          import json, pathlib, shutil, xml.etree.ElementTree as E
+          base=pathlib.Path('/tmp/evidence')
+          out=pathlib.Path('course/evidence'); out.mkdir(parents=True,exist_ok=True)
+          reports=list(base.rglob('TEST-*.xml'))
+          totals={k:0 for k in ['tests','failures','errors','skipped']}
+          for p in reports:
+              r=E.parse(p).getroot()
+              for k in totals: totals[k]+=int(r.get(k,'0'))
+          for p in base.rglob('*.png'):
+              shutil.copy2(p,pathlib.Path('Notes/screenshots')/p.name)
+          for name in ['jotang-smoke.log','jotang-ai.log']:
+              p=next(base.rglob(name)); shutil.copy2(p,out/name)
+          server=next(base.rglob('jotang-server.log')).read_text()
+          (out/'mq.log').write_text('\n'.join(x for x in server.splitlines() if 'MQ received:' in x or 'MQ created note id=' in x or 'AI requested tool:' in x))
+          ai=(out/'jotang-ai.log').read_text()
+          data={'run_id':43860431617,'commit':'ce86f27d096f6dea59ecb2263ac44195b59718d6','tests':totals,'ai_live':'PASS: all live DeepSeek' in ai,'reports':[p.name for p in reports]}
+          (out/'current.json').write_text(json.dumps(data,ensure_ascii=False,indent=2))
+          print(json.dumps(data,ensure_ascii=False))
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add course/evidence Notes/screenshots
+          git commit -m 'docs: retain authentic course verification evidence [skip ci]'
+          git push
