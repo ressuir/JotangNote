@@ -1,0 +1,92 @@
+name: Assemble course deliverables
+on:
+  push:
+    branches: [course/delivery-20261116]
+    paths: [.github/workflows/course-assemble.yml, course/record-demo.cjs, course/finalize-video.py, course/package-delivery.py]
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: jotang-course-assembly
+  cancel-in-progress: false
+jobs:
+  assemble:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install recording dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg fonts-noto-cjk
+          npm install --no-save --package-lock=false playwright@1.57.0
+          npx playwright install --with-deps chromium
+      - name: Build and start the exact delivered Compose project
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        run: |
+          mkdir -p course-output
+          docker compose config --quiet
+          docker compose up --build -d > course-output/compose-build.log 2>&1
+          for i in {1..150}; do
+            if curl -fsS http://localhost:8080/hello >/dev/null; then break; fi
+            sleep 2
+          done
+          curl -fsS http://localhost:8080/hello
+          docker compose ps > course-output/startup.txt
+          docker compose logs --no-color app | tail -n 30 >> course-output/startup.txt
+      - name: Verify real Compose business flows
+        run: python3 course/compose-smoke.py | tee course-output/compose-test.log
+      - name: Record genuine browser operations
+        run: |
+          python3 -m http.server 8090 --directory course-output > /tmp/evidence-server.log 2>&1 &
+          node course/record-demo.cjs | tee course-output/recording.log
+      - name: Edit waits, embed Chinese subtitles and validate video
+        run: python3 course/finalize-video.py > course-output/ffmpeg-validation.log 2>&1
+      - name: Package and validate all four deliverables
+        run: python3 course/package-delivery.py | tee course-output/package-validation.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: JotangNote-course-delivery
+          path: |
+            course-output/焦糖笔记课程交付.zip
+            course-output/qa-*.png
+            course-output/video-validation.json
+            course-output/*.log
+          retention-days: 90
+      - name: Retain review frames and validation data
+        run: |
+          mkdir -p course/qa
+          cp course-output/qa-*.png course-output/video-validation.json course-output/compose-test.log course/qa/
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add course/qa
+          git diff --cached --quiet || git commit -m 'docs: preserve genuine demo review frames and validation [skip ci]'
+          git push
+      - name: Publish downloadable Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cat > /tmp/release-notes.md <<'TEXT'
+          焦糖笔记课程交付：DOCX 与 PDF 项目报告、10 页可编辑 PPTX、约 3 分半钟的 1080p H.264 真实演示和中文字幕 SRT、完整源码与 Docker Compose 运行说明。
+
+          下载“焦糖笔记课程交付.zip”即可获得全部材料。源码中保留真实 Git 历史及云端测试摘要。在线 AI 需要使用自己的有效 DEEPSEEK_API_KEY。
+          TEXT
+          gh release view course-20261116 >/dev/null 2>&1 || gh release create course-20261116 --target "$GITHUB_SHA" --title '焦糖笔记课程交付' --notes-file /tmp/release-notes.md
+          gh release upload course-20261116 course-output/焦糖笔记课程交付.zip course/artifacts/焦糖笔记项目报告.docx course/artifacts/焦糖笔记项目报告.pdf course/artifacts/焦糖笔记项目介绍.pptx course-output/焦糖笔记演示.mp4 course-output/中文字幕.srt --clobber
+      - name: Show logs on failure
+        if: failure()
+        run: |
+          tail -n 80 course-output/compose-build.log 2>/dev/null || true
+          tail -n 80 course-output/ffmpeg-validation.log 2>/dev/null || true
+          docker compose logs --no-color app | tail -n 80

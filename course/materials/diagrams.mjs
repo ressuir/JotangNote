@@ -1,0 +1,17 @@
+import sharp from 'sharp';
+import fs from 'node:fs/promises';
+const out=new URL('./',import.meta.url).pathname;
+const svg=(w,h,body)=>`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#52606d"/></marker></defs><rect width="100%" height="100%" fill="white"/>${body}</svg>`;
+const text=(x,y,t,size=24)=>`<text x="${x}" y="${y}" text-anchor="middle" font-family="Noto Sans CJK SC" font-size="${size}" fill="#162c3a">${t}</text>`;
+const box=(x,y,w,h,ts)=>`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="7" fill="#f2f6f8" stroke="#7e919d" stroke-width="2"/>`+ts.map((t,i)=>text(x+w/2,y+33+i*32,t,i?21:25)).join('');
+const arrow=(x1,y1,x2,y2)=>`<path d="M${x1},${y1} L${x2},${y2}" stroke="#52606d" stroke-width="2.5" fill="none" marker-end="url(#a)"/>`;
+let b=box(30,180,220,100,['浏览器','HTML / CSS / JS'])+box(345,175,320,115,['Spring Boot 4.1.1','Controller / Service / Mapper'])+arrow(250,230,345,230)+text(295,209,'HTTP',18);
+b+=box(780,20,265,85,['MySQL 8.4','users / notes'])+box(780,160,265,85,['Redis 7.4','按用户缓存 · 600 秒'])+box(780,300,265,85,['RabbitMQ 3.13','note.operations'])+box(345,365,320,85,['AI 会话与工具','DeepSeek API · get_note']);
+b+=arrow(665,198,780,62)+arrow(665,222,780,202)+arrow(665,260,780,342)+arrow(505,290,505,365)+text(716,321,'异步写入',19)+text(512,490,'会话与 AI 历史位于应用内存；所有组件按单实例组织',22);
+await sharp(Buffer.from(svg(1080,520,b))).png().toFile(out+'architecture.png');
+b=box(55,100,340,250,['users','id  BIGINT  PK','username  VARCHAR(32)  UK','password_hash  VARCHAR(255)','created_at  DATETIME'])+box(635,40,390,340,['notes','id  BIGINT  PK','author_id  BIGINT  FK / INDEX','title  VARCHAR(200)','content  LONGTEXT','created_at  DATETIME','updated_at  DATETIME']);
+b+=arrow(395,223,635,223)+text(515,190,'1 对 多',26)+text(540,445,'notes.author_id → users.id',25);
+await sharp(Buffer.from(svg(1080,480,b))).png().toFile(out+'database.png');
+b=box(20,110,190,90,['前端提交','POST / PUT / DELETE'])+box(270,110,210,90,['后端鉴权校验','Session → userId'])+box(540,110,210,90,['RabbitMQ 入队','HTTP 202 返回'])+box(810,110,245,90,['消费者执行','MySQL → 清理缓存']);
+b+=arrow(210,155,270,155)+arrow(480,155,540,155)+arrow(750,155,810,155)+text(540,290,'前端轮询 GET /api/notes，匹配实际数据后才显示已保存',25);
+await sharp(Buffer.from(svg(1080,340,b))).png().toFile(out+'write-flow.png');

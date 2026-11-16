@@ -45,3 +45,8 @@ cookie.txt
 *.pem
 *.p12
 *.key
+
+# Generated course build caches and raw captures
+node_modules/
+course/build/
+course-output/
