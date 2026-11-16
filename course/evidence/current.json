@@ -9,8 +9,8 @@
   },
   "ai_live": false,
   "reports": [
-    "TEST-com.example.JotangNote.service.NoteAccessServiceTest.xml",
     "TEST-com.example.JotangNote.ai.ChatServiceTest.xml",
+    "TEST-com.example.JotangNote.service.NoteAccessServiceTest.xml",
     "TEST-com.example.JotangNote.JotangNoteApplicationTests.xml"
   ]
 }
