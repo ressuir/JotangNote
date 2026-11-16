@@ -1,17 +1,17 @@
 {
-  "run_id": 43861139930,
-  "commit": "60cc6a3b2ee788e0f3064ba5ffb658242808ffb2",
+  "run_id": 43862842481,
+  "commit": "fb000345668ee9d0043f44b02bcdc260a51a3b79",
   "tests": {
     "tests": 5,
     "failures": 0,
     "errors": 0,
     "skipped": 0
   },
-  "ai_live": false,
+  "ai_live": true,
   "ai": {
-    "http": 503,
-    "available": false,
-    "message": "AI 服务鉴权失败，请检查服务器 DEEPSEEK_API_KEY 配置",
-    "checked_at": "2026-11-16T11:51:38.915Z"
+    "http": 200,
+    "available": true,
+    "message": "",
+    "checked_at": "2026-11-16T12:03:27.297Z"
   }
 }
